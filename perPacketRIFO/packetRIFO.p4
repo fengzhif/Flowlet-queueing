@@ -5,10 +5,11 @@
 ************* C O N S T A N T S    A N D   T Y P E S  *******************
 **************************************************************************/
 const bit<16> BufferSize=25000;
-#define RIFO_PORT 9000
-#define RIFOWORKER_PORT 9001
+const bit<32> round_add=1;
+
+#define WORKER_PORT 9001
 #define rank_range_threshold 150
-#define rifo_index 0
+
 
 typedef bit<8> ip_protocol_t;
 const ip_protocol_t IP_PROTOCOLS_TCP = 6;
@@ -83,16 +84,15 @@ header udp_h {
    bit<16> checksum;
 }
 
-header rifoWorker_h {
+header worker_h {
     bit<18>     qlength;    // Queue occupancy in cells
     bit<1>      ping_pong;  // Reserved for internal purposes
     bit<11>     qid;        // port_group[3:0] ++ queue_id[6:0]
     bit<2>      pipe_id;
+    bit<32>     round;      //virtual_time
 }
 
-header rifo_h {
-   bit<16> rank;
-}
+
 
 /*************************************************************************
 **************  I N G R E S S   P R O C E S S I N G   *******************
@@ -106,24 +106,28 @@ struct headers_t {
    ipv4_h              ipv4;
    tcp_h               tcp;
    udp_h               udp;
-   rifo_h              rifo;
-   rifoWorker_h       rifoWorker;
+   worker_h            worker;
 }
 
    /******  G L O B A L   I N G R E S S   M E T A D A T A  *********/
 
 struct my_ingress_metadata_t {
+   bit<32>      pkt_rank;
+   bit<32>      flow_index;
+   bit<32>      finish_time_add;
+   bit<32>      round;
+
    bit<16>      queue_length;
    bit<16>      available_queue; //B-l
-   bit<16>      min_pkt_rank;
-   bit<16>      max_pkt_rank;
-   bit<16>      dividend; //rp-Min
-   bit<16>      divisor;  //Max-Min
+   bit<32>      min_pkt_rank;
+   bit<32>      max_pkt_rank;
+   bit<32>      dividend; //rp-Min
+   bit<32>      divisor;  //Max-Min
    bit<24>      left_side; //(rp-Min)*(1-k)*B
    bit<24>      right_side; //(B-l)*(Max-Min)
    bit<24>      rifo_admission;
-   bit<16>      rank_range;
-   bit<16>      max_min;
+   bit<32>      rank_range;
+   bit<32>      max_min;
    bit<5>       max_min_exponent; //Max-Min
    bit<5>       buffer_exponent; //B-l
    bit<5>       dividend_exponent; //rp-Min
@@ -133,7 +137,7 @@ struct my_ingress_metadata_t {
 
 parser TofinoIngressParser(
        packet_in pkt,
-       inout my_ingress_metadata_t ig_md,
+       inout my_ingress_metadata_t meta,
        out ingress_intrinsic_metadata_t ig_intr_md) {
    state start {
        pkt.extract(ig_intr_md);
@@ -184,25 +188,19 @@ parser EtherIPTCPUDPParser(packet_in        pkt,
 
    state parse_tcp {
        pkt.extract(hdr.tcp);
-       transition parse_rifo;
+       transition accept;
    }
 
    state parse_udp {
        pkt.extract(hdr.udp);
        transition select(hdr.udp.dst_port) {
-           RIFO_PORT: parse_rifo;
-           RIFOWORKER_PORT: parse_rifoWorker;
+           WORKER_PORT: parse_worker;
            default: accept;
        }
    }
 
-   state parse_rifo {
-       pkt.extract(hdr.rifo);
-       transition accept;
-   }
-
-   state parse_rifoWorker {
-       pkt.extract(hdr.rifoWorker);
+   state parse_worker {
+       pkt.extract(hdr.worker);
        transition accept;
    }
 }
@@ -210,14 +208,14 @@ parser EtherIPTCPUDPParser(packet_in        pkt,
 parser SwitchIngressParser(
        packet_in pkt,
        out headers_t hdr,
-       out my_ingress_metadata_t ig_md,
+       out my_ingress_metadata_t meta,
        out ingress_intrinsic_metadata_t ig_intr_md) {
 
    TofinoIngressParser() tofino_parser;
    EtherIPTCPUDPParser() layer4_parser;
 
    state start {
-       tofino_parser.apply(pkt, ig_md, ig_intr_md);
+       tofino_parser.apply(pkt, meta, ig_intr_md);
        layer4_parser.apply(pkt, hdr);
        transition accept;
    }
@@ -227,69 +225,167 @@ parser SwitchIngressParser(
 control Ingress(
    /* User */
    inout headers_t                       hdr,
-   inout my_ingress_metadata_t                      ig_md,
+   inout my_ingress_metadata_t                      meta,
    /* Intrinsic */
    in    ingress_intrinsic_metadata_t               ig_intr_md,
    in    ingress_intrinsic_metadata_from_parser_t   ig_prsr_md,
    inout ingress_intrinsic_metadata_for_deparser_t  ig_dprsr_md,
    inout ingress_intrinsic_metadata_for_tm_t        ig_tm_md)
 {
-   action send(PortId_t port) {
-       ig_tm_md.ucast_egress_port = port;
-   }
+    //table forward
+    action forward(PortId_t port){
+        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+        ig_tm_md.ucast_egress_port = port;
+        ig_tm_md.qid = 0;
+    }
+    action drop(){
+        ig_dprsr_md.drop_ctl = 0x1;
+    }
 
-   action drop() {
-       ig_dprsr_md.drop_ctl = 1;
-   }
-   table ipv4_host {
-       key     = { hdr.ipv4.dst_addr : exact; }
-       actions = { send; drop; }
+    table table_forward{
+        key = {
+            hdr.ipv4.dst_addr: exact;
+            // hdr.wfq_t.isValid(): exact;
+            // hdr.worker.isValid(): exact;
+        }
 
-       //default_action = send(64);
-       size           = 512;
-   }
+        actions = {
+            forward;
+            drop;
+        }
+        const default_action = drop();   
+        size = 512;
+    }
+
+    //   //table for round index:
+    // action get_workerround_index_action(bit<32> round_index){
+    //     hdr.worker.round_index = round_index;
+    // }
+    // table get_workerround_index_table{
+    //     key = {
+    //         hdr.worker.egress_port: exact;
+    //         hdr.worker.qid: exact;
+    //     }
+    //     actions = {
+    //         get_workerround_index_action;
+    //     }
+    //     size = 128;
+    // }
+    // //table for get round index (not worker):
+    // action get_round_index_action(bit<32> flow_round_index){
+    //     meta.flow_round_index = flow_round_index; 
+    // }
+    // table get_flow_round_index_table{
+    //     key = {
+    //         ig_tm_md.ucast_egress_port:exact;
+    //         ig_tm_md.qid:exact;
+    //     }
+    //     actions = {
+    //         get_round_index_action;
+    //     }
+    //     size = 128;
+    // }
+
+    action get_weightindex_TCP(bit<32> flow_idx){
+        meta.flow_index = flow_idx;      //flow_index
+    }
+    //table getweightTCP
+    table get_weightindex_TCP_table{
+        key = {
+            hdr.ipv4.src_addr: exact;
+            hdr.tcp.dst_port : exact;
+        }
+        actions = {
+            get_weightindex_TCP;
+        }   
+        size = 512;
+    }
+
+
+    //table getweightUDP
+    action get_weightindex_UDP(bit<32> flow_idx){
+        meta.flow_index = flow_idx;      //flow_index
+    }
+    table get_weightindex_UDP_table{
+        key = {
+            hdr.ipv4.src_addr: exact;
+            hdr.udp.dst_port : exact;
+        }
+        actions = {
+            get_weightindex_UDP;
+        }   
+        size = 512;
+    }
+
+
+    //ingress round register
+    Register<bit<32>,bit<5>> (32,0) Ingress_Round_Reg;
+    RegisterAction<bit<32>,bit<5>,bit<32>> (Ingress_Round_Reg) set_ig_round_reg = {
+        void apply(inout bit<32> value){
+            value = hdr.worker.round;
+        }
+    };
+
+    RegisterAction<bit<32>,bit<5>,bit<32>> (Ingress_Round_Reg) get_ig_round_reg = {
+        void apply(inout bit<32> value,out bit<32> result){
+            result = value;
+        }
+    };
+
+    //f.finish_time register
+    Register<bit<32>,bit<32>> (32w500,0) Packet_Sent_Reg;
+    RegisterAction<bit<32>,bit<32>,bit<32>> (Packet_Sent_Reg) update_and_get_f_finish_time = {
+        void apply(inout bit<32> value,out bit<32> result){ 
+            if(value >= meta.round){
+                value = value + meta.finish_time_add;
+            }
+            else{
+                value = meta.round + meta.finish_time_add; 
+            }
+            result = value;  
+        }
+    };
+
 
    // register to store the queue length (l)
-    Register<bit<16>, _>(32w1) ig_queue_length_reg;
-    RegisterAction<bit<16>, _, bit<16>>(ig_queue_length_reg) ig_queue_length_reg_write = {
+    Register<bit<16>, bit<5>> (32,0) ig_queue_length_reg;
+    RegisterAction<bit<16>, bit<5>, bit<16>>(ig_queue_length_reg) ig_queue_length_reg_write = {
        void apply(inout bit<16> value, out bit<16> read_value){
-            value=hdr.rifoWorker.qlength[15:0];
+            value=hdr.worker.qlength[15:0];
             read_value = value;
        }
    };
-   RegisterAction<bit<16>, _, bit<16>>(ig_queue_length_reg) ig_queue_length_reg_read = {
+   RegisterAction<bit<16>, bit<5>, bit<16>>(ig_queue_length_reg) ig_queue_length_reg_read = {
        void apply(inout bit<16> value, out bit<16> read_value){
                read_value = value;
        }
    };
    /* registers to track min and max values of ranks*/
-   Register<bit<16>, _>(32w1) min_rank_reg;
-   RegisterAction<bit<16>, _, bit<16>>(min_rank_reg) min_rank_reg_write_action = {
-       void apply(inout bit<16> value, out bit<16> read_value){
-           if (value == 0x0)
-               {
-               value = hdr.rifo.rank;
+   Register<bit<32>, bit<5>> (32,0) min_rank_reg;
+   RegisterAction<bit<32>, bit<5>, bit<32>>(min_rank_reg) min_rank_reg_write_action = {
+       void apply(inout bit<32> value, out bit<32> read_value){
+           if (value == 0x0){
+               value = meta.pkt_rank;
            }
-           else if(hdr.rifo.rank < value){
-               value= hdr.rifo.rank;
+           else if(meta.pkt_rank < value){
+               value = meta.pkt_rank;
            }
-           read_value=value;
+           read_value = value;
        }
    };
 
-   Register<bit<16>, _>(32w1) max_rank_reg;
-   RegisterAction<bit<16>, _, bit<16>>(max_rank_reg) max_rank_reg_write_action = {
-       void apply(inout bit<16> value, out bit<16> read_value){
-           if(hdr.rifo.rank > value)
-               {
-                   value = hdr.rifo.rank;
+   Register<bit<32>, bit<5>> (32,0) max_rank_reg;
+   RegisterAction<bit<32>, bit<5>, bit<32>>(max_rank_reg) max_rank_reg_write_action = {
+       void apply(inout bit<32> value, out bit<32> read_value){
+           if(meta.pkt_rank > value){
+                   value = meta.pkt_rank;
            }
            read_value=value;
        }
    };
 
    action action_subtract_queueLength() {
-           ig_md.available_queue=(bit<16>) (BufferSize - ig_md.queue_length);
+           meta.available_queue=(bit<16>) (BufferSize - meta.queue_length);
        }
 
     table subtract_queueLength{
@@ -298,7 +394,7 @@ control Ingress(
        size=1;
    }
    action action_compute_dividend(){
-       ig_md.dividend = hdr.rifo.rank - ig_md.min_pkt_rank;
+       meta.dividend = meta.pkt_rank - meta.min_pkt_rank;
    }
    table compute_dividend{
        actions = { action_compute_dividend;}
@@ -306,8 +402,8 @@ control Ingress(
        size=1;
    }
    action action_compute_divisor(){
-       ig_md.divisor = ig_md.max_pkt_rank - ig_md.min_pkt_rank;
-       ig_md.max_min=ig_md.divisor;
+       meta.divisor = meta.max_pkt_rank - meta.min_pkt_rank;
+       meta.max_min=meta.divisor;
     }
    table compute_divisor{
        actions = { action_compute_divisor;}
@@ -316,7 +412,7 @@ control Ingress(
    }
 
    action action_calculate_left_side(){
-    ig_md.left_side =(bit<24>) ig_md.dividend_exponent << 14; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
+    meta.left_side =(bit<24>) meta.dividend_exponent << 14; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
    }
 
    table calculate_left_side{
@@ -326,7 +422,7 @@ control Ingress(
    }
 
    action action_do_RIFO_admission(){
-       ig_md.rifo_admission = max( ig_md.left_side, ig_md.right_side);
+       meta.rifo_admission = max( meta.left_side, meta.right_side);
     }
     table RIFO_admission{
        actions = { action_do_RIFO_admission;}
@@ -338,20 +434,20 @@ control Ingress(
        ig_tm_md.ucast_egress_port = port;
    }
 
-   action rifoWorker_recirculate(){
+   action worker_recirculate(){
        //packet routing: for now we simply bounce back the packet.
        //any routing match-action logic should be added here.
        ig_tm_md.ucast_egress_port=196;
    }
-   action set_rank(){
-       hdr.rifo.rank =(bit<16>) hdr.ipv4.src_addr[7:0];
-    }
+//    action set_rank(){
+//        hdr.rifo.rank =(bit<16>) hdr.ipv4.src_addr[7:0];
+//     }
    action set_exponent_buffer(bit<5> exponent_value){
-       ig_md.buffer_exponent = exponent_value ;
+       meta.buffer_exponent = exponent_value ;
     }
    table queue_length_lookup {
        key = {
-           ig_md.available_queue: ternary;
+           meta.available_queue: ternary;
        }
        actions = {
            set_exponent_buffer;
@@ -360,11 +456,11 @@ control Ingress(
    }
 
     action set_exponent_dividend(bit<5> exponent_value){
-       ig_md.dividend_exponent= exponent_value ;
+       meta.dividend_exponent= exponent_value ;
     }
    table dividend_lookup {
        key = {
-           ig_md.dividend: ternary;
+           meta.dividend: ternary;
        }
        actions = {
            set_exponent_dividend;
@@ -373,11 +469,11 @@ control Ingress(
    }
 
    action set_exponent_max_min(bit<5> exponent_value){
-       ig_md.max_min_exponent= exponent_value ;
+       meta.max_min_exponent= exponent_value ;
     }
    table max_min_lookup {
        key = {
-           ig_md.max_min: ternary;
+           meta.max_min: ternary;
        }
        actions = {
            set_exponent_max_min;
@@ -386,7 +482,7 @@ control Ingress(
    }
 
    action action_get_ig_queue_length(){
-        ig_md.queue_length=ig_queue_length_reg_read.execute(rifo_index);
+        meta.queue_length=ig_queue_length_reg_read.execute(0);
 
    }
 
@@ -399,7 +495,7 @@ control Ingress(
    }
 
    action action_set_ig_queue_length(){
-        ig_queue_length_reg_write.execute(rifo_index);
+        ig_queue_length_reg_write.execute(0);
    }
 
    table set_ig_queue_length {
@@ -412,12 +508,12 @@ control Ingress(
 
 
    action calculate_max_min_buffer_mul(bit<24> mul){
-       ig_md.right_side= mul ;
+       meta.right_side= mul ;
     }
    table max_min_buffer_lookup {
        key = {
-           ig_md.max_min_exponent: exact;
-           ig_md.buffer_exponent: exact;
+           meta.max_min_exponent: exact;
+           meta.buffer_exponent: exact;
        }
        actions = {
            calculate_max_min_buffer_mul;
@@ -428,17 +524,28 @@ control Ingress(
         if (hdr.ipv4.isValid()) {
 
             // do routing to get the egress port and qid
-            ipv4_host.apply();
-            set_rank();
-            if(hdr.rifoWorker.isValid()){
+            table_forward.apply();
+            if(hdr.worker.isValid()){
                     set_ig_queue_length.apply();
-                    rifoWorker_recirculate();
+                    set_ig_round_reg.execute(0);
+                    ig_dprsr_md.drop_ctl = 0;
+                    worker_recirculate();
             }
             else if(hdr.udp.isValid() || hdr.tcp.isValid()){
-
+                // get flow_index
+                if(hdr.udp.isValid()){
+                    get_weightindex_UDP_table.apply();
+                }
+                else{             
+                    get_weightindex_TCP_table.apply();
+                }
+                //get round
+                meta.round = get_ig_round_reg.execute(0);
+                //get rank
+                meta.pkt_rank = update_and_get_f_finish_time.execute(meta.flow_index);
                 //Get Max and Min ranks
-                ig_md.min_pkt_rank = min_rank_reg_write_action.execute(rifo_index);
-                ig_md.max_pkt_rank = max_rank_reg_write_action.execute(rifo_index);
+                meta.min_pkt_rank = min_rank_reg_write_action.execute(0);
+                meta.max_pkt_rank = max_rank_reg_write_action.execute(0);
 
                 /*compute dividend (Max-rank) and divisor (Max-Min)*/
                 compute_divisor.apply();
@@ -467,7 +574,7 @@ control Ingress(
                 // one condition for all
                 // (1-K) * (rank-Min) * B >= (B-l) * (Max-Min)
 
-                if ( ig_md.rifo_admission == ig_md.left_side) {
+                if ( meta.rifo_admission == meta.left_side) {
                     /* Drop this packet */
                     ig_dprsr_md.drop_ctl = 0x1;
                 }
@@ -482,7 +589,7 @@ control Ingress(
 control IngressDeparser(packet_out pkt,
    /* User */
    inout headers_t                       hdr,
-   in    my_ingress_metadata_t                      ig_md,
+   in    my_ingress_metadata_t                      meta,
    /* Intrinsic */
    in    ingress_intrinsic_metadata_for_deparser_t  ig_dprsr_md)
 {
@@ -522,7 +629,7 @@ struct my_egress_metadata_t {
 parser EgressParser(packet_in        pkt,
    /* User */
    out headers_t          hdr,
-   out my_egress_metadata_t         eg_md,
+   out my_egress_metadata_t         meta_eg,
    /* Intrinsic */
    out egress_intrinsic_metadata_t  eg_intr_md)
 {
@@ -540,13 +647,28 @@ parser EgressParser(packet_in        pkt,
 control Egress(
    /* User */
    inout headers_t                          hdr,
-   inout my_egress_metadata_t                         eg_md,
+   inout my_egress_metadata_t                         meta_eg,
    /* Intrinsic */
    in    egress_intrinsic_metadata_t                  eg_intr_md,
    in    egress_intrinsic_metadata_from_parser_t      eg_prsr_md,
    inout egress_intrinsic_metadata_for_deparser_t     eg_dprsr_md,
    inout egress_intrinsic_metadata_for_output_port_t  eg_oport_md)
 {
+
+     //Engress round register
+    Register<bit<32>,bit<5>> (32,0) Egress_Round_Reg;
+    RegisterAction<bit<32>,bit<5>,bit<32>> (Egress_Round_Reg) set_eg_round_reg = {
+        void apply(inout bit<32> value,out bit<32> result){
+            value = value + round_add;
+            result = value;
+        }
+    };
+
+    RegisterAction<bit<32>,bit<5>,bit<32>> (Egress_Round_Reg) get_eg_round_reg = {
+        void apply(inout bit<32> value,out bit<32> result){
+            result = value;
+        }
+    };
 
     Register<bit<16>, _>(32w1) eg_queue_length_reg;
     RegisterAction<bit<16>, _, bit<16>>(eg_queue_length_reg) eg_queue_length_reg_write = {
@@ -562,11 +684,13 @@ control Egress(
    };
 
    apply {
-	   if(hdr.rifoWorker.isValid()){
-            hdr.rifoWorker.qlength=(bit<18>)eg_queue_length_reg_read.execute(0);
+	   if(hdr.worker.isValid()){
+            hdr.worker.qlength = (bit<18>)eg_queue_length_reg_read.execute(0);
+            hdr.worker.round = get_eg_round_reg.execute(0);
   	    }
-        else if (hdr.rifo.isValid()){
+        else if (!hdr.worker.isValid()){
             eg_queue_length_reg_write.execute(0);
+            set_eg_round_reg.execute(0);
         }
    }
 }
@@ -575,7 +699,7 @@ control Egress(
 control EgressDeparser(packet_out pkt,
    /* User */
    inout headers_t                       hdr,
-   in    my_egress_metadata_t                      eg_md,
+   in    my_egress_metadata_t                      meta_eg,
    /* Intrinsic */
    in    egress_intrinsic_metadata_for_deparser_t  eg_dprsr_md)
 {
