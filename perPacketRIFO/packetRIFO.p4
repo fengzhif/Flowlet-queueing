@@ -114,7 +114,7 @@ struct headers_t {
 struct my_ingress_metadata_t {
    bit<32>      pkt_rank;
    bit<32>      flow_index;
-   bit<32>      finish_time_add;
+   bit<32>      weight;
    bit<32>      round;
 
    bit<16>      queue_length;
@@ -332,15 +332,65 @@ control Ingress(
         }
     };
 
+    //Get weight ,1/wf
+    action get_weight_action(bit<32> weight) {
+        meta.weight = weight;      
+    }
+    table get_weight_table {
+        key = {
+            meta.flow_index:exact;
+        }
+        actions = {
+            get_weight_action;
+        }  
+        size = 512;
+    }
+
     //f.finish_time register
     Register<bit<32>,bit<32>> (32w500,0) Packet_Sent_Reg;
-    RegisterAction<bit<32>,bit<32>,bit<32>> (Packet_Sent_Reg) update_and_get_f_finish_time = {
+    RegisterAction<bit<32>,bit<32>,bit<32>> (Packet_Sent_Reg) regact_update_and_get_f_finish_time2 = {
         void apply(inout bit<32> value,out bit<32> result){ 
             if(value >= meta.round){
-                value = value + meta.finish_time_add;
+                value = value + 2;
             }
             else{
-                value = meta.round + meta.finish_time_add; 
+                value = meta.round + 2; 
+            }
+            result = value;  
+        }
+    };
+    
+    RegisterAction<bit<32>,bit<32>,bit<32>> (Packet_Sent_Reg) regact_update_and_get_f_finish_time4 = {
+        void apply(inout bit<32> value,out bit<32> result){ 
+            if(value >= meta.round){
+                value = value + 4;
+            }
+            else{
+                value = meta.round + 4;
+            }
+            result = value;  
+        }
+    };
+
+    RegisterAction<bit<32>,bit<32>,bit<32>> (Packet_Sent_Reg) regact_update_and_get_f_finish_time8 = {
+        void apply(inout bit<32> value,out bit<32> result){ 
+            if(value >= meta.round){
+                value = value + 8;
+            }
+            else{
+                value = meta.round + 8; 
+            }
+            result = value;  
+        }
+    };
+
+    RegisterAction<bit<32>,bit<32>,bit<32>> (Packet_Sent_Reg) regact_update_and_get_f_finish_time16 = {
+        void apply(inout bit<32> value,out bit<32> result){ 
+            if(value >= meta.round){
+                value = value + 16;
+            }
+            else{
+                value = meta.round + 16; 
             }
             result = value;  
         }
@@ -383,6 +433,35 @@ control Ingress(
            read_value=value;
        }
    };
+    
+    action update_and_get_f_finish_time2(bit<32> flow_index) {
+        meta.pkt_rank = regact_update_and_get_f_finish_time2.execute(flow_index);
+    }
+
+    action update_and_get_f_finish_time4(bit<32> flow_index) {
+        meta.pkt_rank = regact_update_and_get_f_finish_time4.execute(flow_index);
+    }
+
+    action update_and_get_f_finish_time8(bit<32> flow_index) {
+        meta.pkt_rank = regact_update_and_get_f_finish_time8.execute(flow_index);
+    }
+
+    action update_and_get_f_finish_time16(bit<32> flow_index) {
+        meta.pkt_rank = regact_update_and_get_f_finish_time16.execute(flow_index);
+    }
+
+    table update_and_get_f_finish_time {
+        key = {
+            meta.flow_index: exact;
+        }
+        actions = {
+            update_and_get_f_finish_time2;
+            update_and_get_f_finish_time4;
+            update_and_get_f_finish_time8;
+            update_and_get_f_finish_time16;
+        }
+        size = 128;
+    }
 
    action action_subtract_queueLength() {
            meta.available_queue=(bit<16>) (BufferSize - meta.queue_length);
@@ -541,8 +620,11 @@ control Ingress(
                 }
                 //get round
                 meta.round = get_ig_round_reg.execute(0);
+                // Get weight
+                get_weight_table.apply();
                 //get rank
-                meta.pkt_rank = update_and_get_f_finish_time.execute(meta.flow_index);
+                // meta.pkt_rank = update_and_get_f_finish_time.execute(meta.flow_index);
+                update_and_get_f_finish_time.apply();
                 //Get Max and Min ranks
                 meta.min_pkt_rank = min_rank_reg_write_action.execute(0);
                 meta.max_pkt_rank = max_rank_reg_write_action.execute(0);
