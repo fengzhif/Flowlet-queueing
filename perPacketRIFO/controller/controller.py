@@ -33,12 +33,12 @@ class flow:
 
 #forward table
 output_port = 140       #有待修改
-match_table_forward = bfrt_info.table_get("SwitchIngress.table_forward")
-match_table_forward.info.key_field_annotation_add("hdr.ipv4.dstAddr", "ipv4")
+match_table_forward = bfrt_info.table_get("Ingress.table_forward")
+match_table_forward.info.key_field_annotation_add("hdr.ipv4.dst_addr", "ipv4")
 try:
     match_table_forward.entry_add(
         target,
-        [match_table_forward.make_key([client.KeyTuple("hdr.ipv4.dstAddr","10.0.0.4")])],
+        [match_table_forward.make_key([client.KeyTuple("hdr.ipv4.dst_addr","10.0.0.4")])],
         [match_table_forward.make_data([client.DataTuple("port",output_port)],action_name = "forward")]
     )
 finally:
@@ -64,81 +64,81 @@ for i in range(0,tcpflownum):
 #Ingress
 #data packet
 #table get TCP index
-match_table_TCPIndex = bfrt_info.table_get("SwitchIngress.get_weightindex_TCP_table")
-match_table_TCPIndex.info.key_field_annotation_add("hdr.ipv4.srcAddr", "ipv4")
+match_table_TCPIndex = bfrt_info.table_get("Ingress.get_weightindex_TCP_table")
+match_table_TCPIndex.info.key_field_annotation_add("hdr.ipv4.src_addr", "ipv4")
 try:
-    key_src = "hdr.ipv4.srcAddr"
+    key_src = "hdr.ipv4.src_addr"
     key_dst = "hdr.tcp.dst_port"
     for tcpflow in tcp_flows.values():
         match_table_TCPIndex.entry_add(
             target,
             [match_table_TCPIndex.make_key([client.KeyTuple(key_src,tcpflow.srcIP),client.KeyTuple(key_dst,tcpflow.dstPort)])],
-            [match_table_TCPIndex.make_data([client.DataTuple("flow_idx",tcpflow.index)],action_name = "SwitchIngress.get_weightindex_TCP")]
+            [match_table_TCPIndex.make_data([client.DataTuple("flow_idx",tcpflow.index)],action_name = "Ingress.get_weightindex_TCP")]
         )
 finally:
     pass
 
 
 #get weight 1/wf  TCP
-match_table_getweight = bfrt_info.table_get("SwitchIngress.get_weight_table")
+match_table_getweight = bfrt_info.table_get("Ingress.get_weight_table")
 try:
     keyname = "meta.flow_index"
     for tcpflow in tcp_flows.values():
         match_table_getweight.entry_add(
             target,
             [match_table_getweight.make_key([client.KeyTuple(keyname,tcpflow.index)])],
-            [match_table_getweight.make_data([client.DataTuple("weight",tcpflow.weight)],action_name = "SwitchIngress.get_weight_action")]
+            [match_table_getweight.make_data([client.DataTuple("weight",tcpflow.weight)],action_name = "Ingress.get_weight_action")]
         )
 finally:
     pass
 
 #get finish_time_add
-match_table_finishTime = bfrt_info.table_get("SwitchIngress.update_and_get_f_finish_time")
+match_table_finishTime = bfrt_info.table_get("Ingress.update_and_get_f_finish_time")
 try:
     keyname = "meta.flow_index"
     for i in range(3):
         match_table_finishTime.entry_add(
             target,
             [match_table_finishTime.make_key([client.KeyTuple(keyname,i)])],
-            [match_table_finishTime.make_data([client.DataTuple("flow_index",i)],action_name = "SwitchIngress.update_and_get_f_finish_time"+str(tcp_weights[i]))]
+            [match_table_finishTime.make_data([client.DataTuple("flow_index",i)],action_name = "Ingress.update_and_get_f_finish_time"+str(tcp_weights[i]))]
         )
 finally:
     pass
 
 #get queue_length
-match_table_queueLength = bfrt_info.table_get("SwitchIngress.queue_length_lookup")
+match_table_queueLength = bfrt_info.table_get("Ingress.queue_length_lookup")
 try:
     keyname = "meta.available_queue"
     for i in range(1,16):
         available_queue = 2**(i-1)
-        available_queue_mask = '0b'+format((1 << i) - 1, '016b')
+        available_queue_mask = bytearray(((1 << i) - 1).to_bytes(2, byteorder='big'))
         exponent_value = int(i)
         match_table_queueLength.entry_add(
             target,
             [match_table_queueLength.make_key([client.KeyTuple(keyname,available_queue,available_queue_mask)])],
-            [match_table_queueLength.make_data([client.DataTuple("exponent_value",exponent_value)],action_name = "SwitchIngress.set_exponent_buffer")]
+            [match_table_queueLength.make_data([client.DataTuple("exponent_value",exponent_value)],action_name = "Ingress.set_exponent_buffer")]
         )
 finally:
     pass
 
 #get max_min
-match_table_MaxMin = bfrt_info.table_get("SwitchIngress.max_min_lookup")
+match_table_MaxMin = bfrt_info.table_get("Ingress.max_min_lookup")
 try:
     keyname = "meta.max_min"
     for i in range(1,16):
         max_min = 2**(i-1)
-        max_min_mask = '0b'+format((1 << i) - 1, '016b')
+        max_min_mask = bytearray(((1 << i) - 1).to_bytes(2, byteorder='big'))
         exponent_value = int(i)
         match_table_MaxMin.entry_add(
             target,
             [match_table_MaxMin.make_key([client.KeyTuple(keyname,max_min,max_min_mask)])],
-            [match_table_MaxMin.make_data([client.DataTuple("exponent_value",exponent_value)],action_name = "SwitchIngress.set_exponent_max_min")]
+            [match_table_MaxMin.make_data([client.DataTuple("exponent_value",exponent_value)],action_name = "Ingress.set_exponent_max_min")]
         )
 finally:
     pass
 
 #get max_min_buffer
-match_table_MaxMinBuffer = bfrt_info.table_get("SwitchIngress.max_min_buffer_lookup")
+match_table_MaxMinBuffer = bfrt_info.table_get("Ingress.max_min_buffer_lookup")
 try:
     key_max_min = "meta.max_min_exponent"
     key_buffer = "meta.buffer_exponent"
@@ -148,23 +148,23 @@ try:
             match_table_MaxMinBuffer.entry_add(
                 target,
                 [match_table_MaxMinBuffer.make_key([client.KeyTuple(key_max_min,i),client.KeyTuple(key_buffer,j)])],
-                [match_table_MaxMinBuffer.make_data([client.DataTuple("mul",mul)],action_name = "SwitchIngress. calculate_max_min_buffer_mul")]
+                [match_table_MaxMinBuffer.make_data([client.DataTuple("mul",mul)],action_name = "Ingress.calculate_max_min_buffer_mul")]
             )
 finally:
     pass
 
 #get dividend
-match_table_dividend = bfrt_info.table_get("SwitchIngress.dividend_lookup")
+match_table_dividend = bfrt_info.table_get("Ingress.dividend_lookup")
 try:
     keyname = "meta.dividend"
     for i in range(1,16):
         dividend = 2**(i-1)
-        dividend_mask = '0b'+format((1 << i) - 1, '016b')
+        dividend_mask = bytearray(((1 << i) - 1).to_bytes(2, byteorder='big'))
         exponent_value = int(i)
         match_table_dividend.entry_add(
             target,
             [match_table_dividend.make_key([client.KeyTuple(keyname,dividend,dividend_mask)])],
-            [match_table_dividend.make_data([client.DataTuple("exponent_value",exponent_value)],action_name = "SwitchIngress.set_exponent_dividend")]
+            [match_table_dividend.make_data([client.DataTuple("exponent_value",exponent_value)],action_name = "Ingress.set_exponent_dividend")]
         )
 finally:
     pass
