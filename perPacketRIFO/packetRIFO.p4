@@ -85,11 +85,10 @@ header udp_h {
 }
 
 header worker_h {
-    bit<18>     qlength;    // Queue occupancy in cells
-    bit<1>      ping_pong;  // Reserved for internal purposes
-    bit<11>     qid;        // port_group[3:0] ++ queue_id[6:0]
-    bit<2>      pipe_id;
+    bit<16>     qlength;    // Queue occupancy in cells
+    bit<32>     qid;
     bit<32>     round;      //virtual_time
+    bit<32>     round_index;
 }
 
 
@@ -401,7 +400,7 @@ control Ingress(
     Register<bit<16>, bit<5>> (32,0) ig_queue_length_reg;
     RegisterAction<bit<16>, bit<5>, bit<16>>(ig_queue_length_reg) ig_queue_length_reg_write = {
        void apply(inout bit<16> value, out bit<16> read_value){
-            value=hdr.worker.qlength[15:0];
+            value=hdr.worker.qlength;
             read_value = value;
        }
    };
@@ -767,7 +766,7 @@ control Egress(
 
    apply {
 	   if(hdr.worker.isValid()){
-            hdr.worker.qlength = (bit<18>)eg_queue_length_reg_read.execute(0);
+            hdr.worker.qlength = eg_queue_length_reg_read.execute(0);
             hdr.worker.round = get_eg_round_reg.execute(0);
   	    }
         else if (!hdr.worker.isValid()){
