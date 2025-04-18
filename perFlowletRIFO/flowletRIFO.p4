@@ -542,7 +542,7 @@ control Ingress(
    action worker_recirculate(){
        //packet routing: for now we simply bounce back the packet.
        //any routing match-action logic should be added here.
-       ig_tm_md.ucast_egress_port=196;
+       ig_tm_md.ucast_egress_port=164;
    }
 //    action set_rank(){
 //        hdr.rifo.rank =(bit<16>) hdr.ipv4.src_addr[7:0];
