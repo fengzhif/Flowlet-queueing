@@ -113,7 +113,7 @@ struct headers_t {
 struct my_ingress_metadata_t {
    bit<32>      pkt_rank;
    bit<32>      flow_index;
-   bit<32>      weight;
+//    bit<32>      weight;
    bit<32>      round;
 
    bit<16>      queue_length;
@@ -301,20 +301,20 @@ control Ingress(
     }
 
 
-    //table getweightUDP
-    action get_weightindex_UDP(bit<32> flow_idx){
-        meta.flow_index = flow_idx;      //flow_index
-    }
-    table get_weightindex_UDP_table{
-        key = {
-            hdr.ipv4.src_addr: exact;
-            hdr.udp.dst_port : exact;
-        }
-        actions = {
-            get_weightindex_UDP;
-        }   
-        size = 512;
-    }
+    // //table getweightUDP
+    // action get_weightindex_UDP(bit<32> flow_idx){
+    //     meta.flow_index = flow_idx;      //flow_index
+    // }
+    // table get_weightindex_UDP_table{
+    //     key = {
+    //         hdr.ipv4.src_addr: exact;
+    //         hdr.udp.dst_port : exact;
+    //     }
+    //     actions = {
+    //         get_weightindex_UDP;
+    //     }   
+    //     size = 512;
+    // }
 
 
     //ingress round register
@@ -331,19 +331,19 @@ control Ingress(
         }
     };
 
-    //Get weight ,1/wf
-    action get_weight_action(bit<32> weight) {
-        meta.weight = weight;      
-    }
-    table get_weight_table {
-        key = {
-            meta.flow_index:exact;
-        }
-        actions = {
-            get_weight_action;
-        }  
-        size = 512;
-    }
+    // //Get weight ,1/wf
+    // action get_weight_action(bit<32> weight) {
+    //     meta.weight = weight;      
+    // }
+    // table get_weight_table {
+    //     key = {
+    //         meta.flow_index:exact;
+    //     }
+    //     actions = {
+    //         get_weight_action;
+    //     }  
+    //     size = 512;
+    // }
 
     //f.finish_time register
     Register<bit<32>,bit<32>> (32w500,0) Packet_Sent_Reg;
@@ -609,18 +609,19 @@ control Ingress(
                     ig_dprsr_md.drop_ctl = 0;
                     worker_recirculate();
             }
-            else if(hdr.udp.isValid() || hdr.tcp.isValid()){
+            else if(hdr.tcp.isValid()){
                 // get flow_index
-                if(hdr.udp.isValid()){
-                    get_weightindex_UDP_table.apply();
-                }
-                else{             
-                    get_weightindex_TCP_table.apply();
-                }
+                // if(hdr.udp.isValid()){
+                //     get_weightindex_UDP_table.apply();
+                // }
+                // else{             
+                //     get_weightindex_TCP_table.apply();
+                // }
+                get_weightindex_TCP_table.apply();
                 //get round
                 meta.round = get_ig_round_reg.execute(0);
-                // Get weight
-                get_weight_table.apply();
+                // Get weight  meta.weight没被使用时，无法通过下流表项为其赋值
+                // get_weight_table.apply();
                 //get rank
                 // meta.pkt_rank = update_and_get_f_finish_time.execute(meta.flow_index);
                 update_and_get_f_finish_time.apply();
