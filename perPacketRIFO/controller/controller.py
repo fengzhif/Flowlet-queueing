@@ -79,18 +79,18 @@ finally:
     pass
 
 
-#get weight 1/wf  TCP
-match_table_getweight = bfrt_info.table_get("Ingress.get_weight_table")
-try:
-    keyname = "meta.flow_index"
-    for tcpflow in tcp_flows.values():
-        match_table_getweight.entry_add(
-            target,
-            [match_table_getweight.make_key([client.KeyTuple(keyname,tcpflow.index)])],
-            [match_table_getweight.make_data([client.DataTuple("weight",tcpflow.weight)],action_name = "Ingress.get_weight_action")]
-        )
-finally:
-    pass
+# #get weight 1/wf  TCP
+# match_table_getweight = bfrt_info.table_get("Ingress.get_weight_table")
+# try:
+#     keyname = "meta.flow_index"
+#     for tcpflow in tcp_flows.values():
+#         match_table_getweight.entry_add(
+#             target,
+#             [match_table_getweight.make_key([client.KeyTuple(keyname,tcpflow.index)])],
+#             [match_table_getweight.make_data([client.DataTuple("weight",tcpflow.weight)],action_name = "Ingress.get_weight_action")]
+#         )
+# finally:
+#     pass
 
 #get finish_time_add
 match_table_finishTime = bfrt_info.table_get("Ingress.update_and_get_f_finish_time")
