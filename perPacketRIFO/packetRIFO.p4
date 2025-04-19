@@ -6,6 +6,7 @@
 **************************************************************************/
 const bit<16> BufferSize=25000;
 const PortId_t OutputPort = 156;
+const bit<8>  CounterLimit = 500;
 const bit<32> round_add=1;
 
 #define WORKER_PORT 9001
@@ -396,6 +397,20 @@ control Ingress(
         }
     };
 
+    //counter
+    Register<bit<8>,_>(32w1) countReg;
+    RegisterAction<bit<8>,_,bit<8>>(countReg) set_counter_reg = {
+        void apply(inout bit<8> value,out bit<8> result){
+            if(value == CounterLimit){
+                result = 1;
+                value = 1;
+            }
+            else{
+                result = 0;
+                value = value + 1;
+            }
+        }
+    };
 
    // register to store the queue length (l)
     Register<bit<16>, bit<5>> (32,0) ig_queue_length_reg;
@@ -423,6 +438,11 @@ control Ingress(
            read_value = value;
        }
    };
+    RegisterAction<bit<32>, bit<5>, bit<32>>(min_rank_reg) min_rank_reg_reset_action = {
+       void apply(inout bit<32> value, out bit<32> read_value){
+           value = meta.pkt_rank;
+       }
+   };
 
    Register<bit<32>, bit<5>> (32,0) max_rank_reg;
    RegisterAction<bit<32>, bit<5>, bit<32>>(max_rank_reg) max_rank_reg_write_action = {
@@ -431,6 +451,11 @@ control Ingress(
                    value = meta.pkt_rank;
            }
            read_value=value;
+       }
+   };
+    RegisterAction<bit<32>, bit<5>, bit<32>>(max_rank_reg) max_rank_reg_reset_action = {
+       void apply(inout bit<32> value, out bit<32> read_value){
+           value = meta.pkt_rank;
        }
    };
     
@@ -491,7 +516,7 @@ control Ingress(
    }
 
    action action_calculate_left_side(){
-    meta.left_side =(bit<24>) meta.dividend_exponent + 13; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
+    meta.left_side =(bit<24>) meta.dividend_exponent + 14; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
    }
 
    table calculate_left_side{
@@ -626,9 +651,17 @@ control Ingress(
                 //get rank
                 // meta.pkt_rank = update_and_get_f_finish_time.execute(meta.flow_index);
                 update_and_get_f_finish_time.apply();
-                //Get Max and Min ranks
-                meta.min_pkt_rank = min_rank_reg_write_action.execute(0);
-                meta.max_pkt_rank = max_rank_reg_write_action.execute(0);
+                //get counter
+                bit<8> count_reset = set_counter_reg.execute(0);
+                if(count_reset == 1){
+                    max_rank_reg_reset_action.execute(0);
+                    min_rank_reg_reset_action.execute(0);
+                }
+                else{
+                    //Get Max and Min ranks
+                    meta.min_pkt_rank = min_rank_reg_write_action.execute(0);
+                    meta.max_pkt_rank = max_rank_reg_write_action.execute(0);
+                }
 
                 /*compute dividend (Max-rank) and divisor (Max-Min)*/
                 compute_divisor.apply();
@@ -756,7 +789,7 @@ control Egress(
     Register<bit<16>, _>(32w1) eg_queue_length_reg;
     RegisterAction<bit<16>, _, bit<16>>(eg_queue_length_reg) eg_queue_length_reg_write = {
        void apply(inout bit<16> value, out bit<16> read_value){
-            value = eg_intr_md.enq_qdepth[15:0];
+            value = eg_intr_md.deq_qdepth[15:0];
             read_value = value;
        }
    };
