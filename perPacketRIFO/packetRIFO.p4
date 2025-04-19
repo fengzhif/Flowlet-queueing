@@ -5,6 +5,7 @@
 ************* C O N S T A N T S    A N D   T Y P E S  *******************
 **************************************************************************/
 const bit<16> BufferSize=25000;
+const PortId_t OutputPort = 156;
 const bit<32> round_add=1;
 
 #define WORKER_PORT 9001
@@ -120,13 +121,13 @@ struct my_ingress_metadata_t {
    bit<16>      available_queue; //B-l
    bit<32>      min_pkt_rank;
    bit<32>      max_pkt_rank;
-   bit<32>      dividend; //rp-Min
-   bit<32>      divisor;  //Max-Min
+   bit<16>      dividend; //rp-Min
+   bit<16>      divisor;  //Max-Min
    bit<24>      left_side; //(rp-Min)*(1-k)*B
    bit<24>      right_side; //(B-l)*(Max-Min)
    bit<24>      rifo_admission;
    bit<32>      rank_range;
-   bit<32>      max_min;
+   bit<16>      max_min;
    bit<5>       max_min_exponent; //Max-Min
    bit<5>       buffer_exponent; //B-l
    bit<5>       dividend_exponent; //rp-Min
@@ -472,7 +473,7 @@ control Ingress(
        size=1;
    }
    action action_compute_dividend(){
-       meta.dividend = meta.pkt_rank - meta.min_pkt_rank;
+       meta.dividend = (bit<16>)(meta.pkt_rank - meta.min_pkt_rank);
    }
    table compute_dividend{
        actions = { action_compute_dividend;}
@@ -480,8 +481,8 @@ control Ingress(
        size=1;
    }
    action action_compute_divisor(){
-       meta.divisor = meta.max_pkt_rank - meta.min_pkt_rank;
-       meta.max_min=meta.divisor;
+       meta.divisor = (bit<16>)(meta.max_pkt_rank - meta.min_pkt_rank);
+       meta.max_min = meta.divisor;
     }
    table compute_divisor{
        actions = { action_compute_divisor;}
@@ -490,7 +491,7 @@ control Ingress(
    }
 
    action action_calculate_left_side(){
-    meta.left_side =(bit<24>) meta.dividend_exponent << 14; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
+    meta.left_side =(bit<24>) meta.dividend_exponent + 13; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
    }
 
    table calculate_left_side{
@@ -525,7 +526,7 @@ control Ingress(
     }
    table queue_length_lookup {
        key = {
-           meta.available_queue: ternary;
+           meta.available_queue: range;
        }
        actions = {
            set_exponent_buffer;
@@ -538,7 +539,7 @@ control Ingress(
     }
    table dividend_lookup {
        key = {
-           meta.dividend: ternary;
+           meta.dividend: range;
        }
        actions = {
            set_exponent_dividend;
@@ -551,7 +552,7 @@ control Ingress(
     }
    table max_min_lookup {
        key = {
-           meta.max_min: ternary;
+           meta.max_min: range;
        }
        actions = {
            set_exponent_max_min;
@@ -656,7 +657,7 @@ control Ingress(
                 // one condition for all
                 // (1-K) * (rank-Min) * B >= (B-l) * (Max-Min)
 
-                if ( meta.rifo_admission == meta.left_side) {
+                if ( meta.max_pkt_rank != meta.min_pkt_rank && meta.rifo_admission == meta.left_side ) {
                     /* Drop this packet */
                     ig_dprsr_md.drop_ctl = 0x1;
                 }
@@ -770,7 +771,7 @@ control Egress(
             hdr.worker.qlength = eg_queue_length_reg_read.execute(0);
             hdr.worker.round = get_eg_round_reg.execute(0);
   	    }
-        else if (!hdr.worker.isValid()){
+        else if (!hdr.worker.isValid() && eg_intr_md.egress_port == OutputPort){
             eg_queue_length_reg_write.execute(0);
             set_eg_round_reg.execute(0);
         }
