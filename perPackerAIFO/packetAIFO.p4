@@ -6,12 +6,11 @@
 **************************************************************************/
 const bit<16> BufferSize=25000;
 const PortId_t OutputPort = 156;
-const bit<16>  CounterLimit = 50;
+const bit<16>  IndexLimit = 500;
 const bit<32> round_add=1;
 
 #define WORKER_PORT 9001
 #define rank_range_threshold 150
-
 
 typedef bit<8> ip_protocol_t;
 const ip_protocol_t IP_PROTOCOLS_TCP = 6;
@@ -115,26 +114,33 @@ struct headers_t {
 struct my_ingress_metadata_t {
    bit<32>      pkt_rank;
    bit<32>      flow_index;
-//    bit<32>      weight;
    bit<32>      round;
-   bit<32>      finish_time;
+
+   bit<16>      count_all;
+   bit<1>       count_1;
+   bit<1>       count_2;
+   bit<1>       count_3;
+   bit<1>       count_4;
+   bit<1>       count_5;
+   bit<1>       count_6;
+   bit<1>       count_7;
+   bit<1>       count_8;
+   bit<1>       count_9;
+   bit<1>       count_10;
+   bit<1>       count_11;
+   bit<1>       count_12;
+   bit<1>       count_13;
+   bit<1>       count_14;
+   bit<1>       count_15;
+   bit<1>       count_16;
+   bit<16>      tail;
 
    bit<16>      queue_length;
    bit<16>      available_queue; //B-l
-   bit<32>      min_pkt_rank;
-   bit<32>      max_pkt_rank;
-   bit<16>      dividend; //rp-Min
-   bit<16>      divisor;  //Max-Min
-   bit<24>      left_side; //(rp-Min)*(1-k)*B
-   bit<24>      right_side; //(B-l)*(Max-Min)
-   bit<24>      rifo_admission;
-   bit<32>      rank_range;
-   bit<16>      max_min;
-   bit<5>       max_min_exponent; //Max-Min
-   bit<5>       buffer_exponent; //B-l
-   bit<5>       dividend_exponent; //rp-Min
-
+   bit<16>      left_side;
+   bit<16>      aifo_admission;
 }
+
     /***********************  P A R S E R  **************************/
 
 parser TofinoIngressParser(
@@ -259,35 +265,6 @@ control Ingress(
         size = 512;
     }
 
-    //   //table for round index:
-    // action get_workerround_index_action(bit<32> round_index){
-    //     hdr.worker.round_index = round_index;
-    // }
-    // table get_workerround_index_table{
-    //     key = {
-    //         hdr.worker.egress_port: exact;
-    //         hdr.worker.qid: exact;
-    //     }
-    //     actions = {
-    //         get_workerround_index_action;
-    //     }
-    //     size = 128;
-    // }
-    // //table for get round index (not worker):
-    // action get_round_index_action(bit<32> flow_round_index){
-    //     meta.flow_round_index = flow_round_index; 
-    // }
-    // table get_flow_round_index_table{
-    //     key = {
-    //         ig_tm_md.ucast_egress_port:exact;
-    //         ig_tm_md.qid:exact;
-    //     }
-    //     actions = {
-    //         get_round_index_action;
-    //     }
-    //     size = 128;
-    // }
-
     action get_weightindex_TCP(bit<32> flow_idx){
         meta.flow_index = flow_idx;      //flow_index
     }
@@ -302,23 +279,20 @@ control Ingress(
         }   
         size = 512;
     }
-
-
-    // //table getweightUDP
-    // action get_weightindex_UDP(bit<32> flow_idx){
-    //     meta.flow_index = flow_idx;      //flow_index
-    // }
-    // table get_weightindex_UDP_table{
-    //     key = {
-    //         hdr.ipv4.src_addr: exact;
-    //         hdr.udp.dst_port : exact;
-    //     }
-    //     actions = {
-    //         get_weightindex_UDP;
-    //     }   
-    //     size = 512;
-    // }
-
+    //counter meta.tail
+    Register<bit<16>,_>(32w1) IndexReg;
+    RegisterAction<bit<16>,_,bit<16>>(IndexReg) set_and_get_tail_reg = {
+        void apply(inout bit<16> value,out bit<16> result){
+            if(value == IndexLimit){
+                result = 0;
+                value = 0;
+            }
+            else{
+                result = value;
+                value = value + 1;
+            }
+        }
+    };
 
     //ingress round register
     Register<bit<32>,bit<5>> (32,0) Ingress_Round_Reg;
@@ -334,19 +308,6 @@ control Ingress(
         }
     };
 
-    // //Get weight ,1/wf
-    // action get_weight_action(bit<32> weight) {
-    //     meta.weight = weight;      
-    // }
-    // table get_weight_table {
-    //     key = {
-    //         meta.flow_index:exact;
-    //     }
-    //     actions = {
-    //         get_weight_action;
-    //     }  
-    //     size = 512;
-    // }
 
     //f.finish_time register
     Register<bit<32>,bit<32>> (32w500,0) Packet_Sent_Reg;
@@ -398,47 +359,6 @@ control Ingress(
         }
     };
 
-    //timestamp:
-    Register<bit<32>,bit<32>> (512) TimestampReg;
-    RegisterAction<bit<32>,bit<32>,bit<32>> (TimestampReg) get_and_update_time = {
-        void apply(inout bit<32> value,out bit<32> result){
-            if (ig_prsr_md.global_tstamp[31:0]-value>500000){
-                result = 1;
-            }
-            else{
-                result = 0;
-            }
-            value = ig_prsr_md.global_tstamp[31:0]; //update timestamp always
-        }
-    };   
-
-    //counter
-    Register<bit<16>,_>(32w1) countReg;
-    RegisterAction<bit<16>,_,bit<16>>(countReg) set_counter_reg = {
-        void apply(inout bit<16> value,out bit<16> result){
-            if(value == CounterLimit){
-                result = 1;
-                value = 1;
-            }
-            else{
-                result = 0;
-                value = value + 1;
-            }
-        }
-    };
-
-    //rank
-    Register<bit<32>,bit<32>> (512) RankReg;
-    RegisterAction<bit<32>,bit<32>,bit<32>> (RankReg) read_rank_reg = {
-        void apply(inout bit<32> value,out bit<32> result){
-            result=value;
-        }
-    };
-    RegisterAction<bit<32>,bit<32>,bit<32>> (RankReg) write_rank_reg = {
-        void apply(inout bit<32> value,out bit<32> result){
-            value=meta.pkt_rank;
-        }
-    };
 
    // register to store the queue length (l)
     Register<bit<16>, bit<5>> (32,0) ig_queue_length_reg;
@@ -452,55 +372,21 @@ control Ingress(
        void apply(inout bit<16> value, out bit<16> read_value){
                read_value = value;
        }
-   };
-   /* registers to track min and max values of ranks*/
-   Register<bit<32>, bit<5>> (32,0) min_rank_reg;
-   RegisterAction<bit<32>, bit<5>, bit<32>>(min_rank_reg) min_rank_reg_write_action = {
-       void apply(inout bit<32> value, out bit<32> read_value){
-           if (value == 0x0){
-               value = meta.pkt_rank;
-           }
-           else if(meta.pkt_rank < value){
-               value = meta.pkt_rank;
-           }
-           read_value = value;
-       }
-   };
-   RegisterAction<bit<32>, bit<5>, bit<32>>(min_rank_reg) min_rank_reg_reset_action = {
-       void apply(inout bit<32> value, out bit<32> read_value){
-           value = meta.pkt_rank;
-       }
-   };
-
-   Register<bit<32>, bit<5>> (32,0) max_rank_reg;
-   RegisterAction<bit<32>, bit<5>, bit<32>>(max_rank_reg) max_rank_reg_write_action = {
-       void apply(inout bit<32> value, out bit<32> read_value){
-           if(meta.pkt_rank > value){
-                   value = meta.pkt_rank;
-           }
-           read_value=value;
-       }
-   };
-   RegisterAction<bit<32>, bit<5>, bit<32>>(max_rank_reg) max_rank_reg_reset_action = {
-       void apply(inout bit<32> value, out bit<32> read_value){
-           value = meta.pkt_rank;
-       }
-   };
-    
+   };  
     action update_and_get_f_finish_time2(bit<32> flow_index) {
-        meta.finish_time = regact_update_and_get_f_finish_time2.execute(flow_index);
+        meta.pkt_rank = regact_update_and_get_f_finish_time2.execute(flow_index);
     }
 
     action update_and_get_f_finish_time4(bit<32> flow_index) {
-        meta.finish_time = regact_update_and_get_f_finish_time4.execute(flow_index);
+        meta.pkt_rank = regact_update_and_get_f_finish_time4.execute(flow_index);
     }
 
     action update_and_get_f_finish_time8(bit<32> flow_index) {
-        meta.finish_time = regact_update_and_get_f_finish_time8.execute(flow_index);
+        meta.pkt_rank = regact_update_and_get_f_finish_time8.execute(flow_index);
     }
 
     action update_and_get_f_finish_time16(bit<32> flow_index) {
-        meta.finish_time = regact_update_and_get_f_finish_time16.execute(flow_index);
+        meta.pkt_rank = regact_update_and_get_f_finish_time16.execute(flow_index);
     }
 
     table update_and_get_f_finish_time {
@@ -525,26 +411,9 @@ control Ingress(
        default_action = action_subtract_queueLength();
        size=1;
    }
-   action action_compute_dividend(){
-       meta.dividend = (bit<16>)(meta.pkt_rank - meta.min_pkt_rank);
-   }
-   table compute_dividend{
-       actions = { action_compute_dividend;}
-       default_action = action_compute_dividend();
-       size=1;
-   }
-   action action_compute_divisor(){
-       meta.divisor = (bit<16>)(meta.max_pkt_rank - meta.min_pkt_rank);
-       meta.max_min = meta.divisor;
-    }
-   table compute_divisor{
-       actions = { action_compute_divisor;}
-       default_action = action_compute_divisor();
-       size=1;
-   }
 
    action action_calculate_left_side(){
-    meta.left_side =(bit<24>) meta.dividend_exponent + 13; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
+    meta.left_side = meta.count_all << 10; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
    }
 
    table calculate_left_side{
@@ -553,12 +422,12 @@ control Ingress(
        size=1;
    }
 
-   action action_do_RIFO_admission(){
-       meta.rifo_admission = max( meta.left_side, meta.right_side);
+   action action_do_AIFO_admission(){
+       meta.aifo_admission = max(meta.left_side,meta.available_queue);
     }
-    table RIFO_admission{
-       actions = { action_do_RIFO_admission;}
-       default_action = action_do_RIFO_admission();
+    table AIFO_admission{
+       actions = { action_do_AIFO_admission;}
+       default_action = action_do_AIFO_admission();
        size=1;
    }
 
@@ -570,47 +439,6 @@ control Ingress(
        //packet routing: for now we simply bounce back the packet.
        //any routing match-action logic should be added here.
        ig_tm_md.ucast_egress_port=164;
-   }
-//    action set_rank(){
-//        hdr.rifo.rank =(bit<16>) hdr.ipv4.src_addr[7:0];
-//     }
-   action set_exponent_buffer(bit<5> exponent_value){
-       meta.buffer_exponent = exponent_value ;
-    }
-   table queue_length_lookup {
-       key = {
-           meta.available_queue: range;
-       }
-       actions = {
-           set_exponent_buffer;
-       }
-       size = 512;
-   }
-
-    action set_exponent_dividend(bit<5> exponent_value){
-       meta.dividend_exponent= exponent_value ;
-    }
-   table dividend_lookup {
-       key = {
-           meta.dividend: range;
-       }
-       actions = {
-           set_exponent_dividend;
-       }
-       size = 512;
-   }
-
-   action set_exponent_max_min(bit<5> exponent_value){
-       meta.max_min_exponent= exponent_value ;
-    }
-   table max_min_lookup {
-       key = {
-           meta.max_min: range;
-       }
-       actions = {
-           set_exponent_max_min;
-       }
-       size = 512;
    }
 
    action action_get_ig_queue_length(){
@@ -638,25 +466,254 @@ control Ingress(
        size = 1;
    }
 
+    //count
+    Register<bit<32>,_> (32w1) count_test_1;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_1) check_win_reg1 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 0){
+                value = meta.pkt_rank;
+            }
 
-   action calculate_max_min_buffer_mul(bit<24> mul){
-       meta.right_side= mul ;
-    }
-   table max_min_buffer_lookup {
-       key = {
-           meta.max_min_exponent: exact;
-           meta.buffer_exponent: exact;
-       }
-       actions = {
-           calculate_max_min_buffer_mul;
-       }
-       size = 512;
-   }
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_2;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_2) check_win_reg2 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 1){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_3;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_3) check_win_reg3 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 2){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_4;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_4) check_win_reg4 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 3){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_5;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_5) check_win_reg5 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 4){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_6;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_6) check_win_reg6 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 5){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_7;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_7) check_win_reg7 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 6){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_8;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_8) check_win_reg8 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 7){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_9;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_9) check_win_reg9 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 8){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_10;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_10) check_win_reg10 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 9){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_11;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_11) check_win_reg11 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 10){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_12;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_12) check_win_reg12 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 11){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_13;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_13) check_win_reg13 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 12){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_14;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_14) check_win_reg14 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 13){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_15;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_15) check_win_reg15 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 14){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+    Register<bit<32>,_> (32w1) count_test_16;
+    RegisterAction<bit<32>,_,bit<1>> (count_test_16) check_win_reg16 = {
+        void apply(inout bit<32> value,out bit<1> result){
+            if(meta.pkt_rank > value){
+                result = 1;
+            }
+            else{
+                result = 0;
+            }
+            if(meta.tail == 15){
+                value = meta.pkt_rank;
+            }
+
+        }
+    };
+
    apply {
         if (hdr.ipv4.isValid()) {
 
             // do routing to get the egress port and qid
             table_forward.apply();
+            meta.count_all = 0;
             if(hdr.worker.isValid()){
                     set_ig_queue_length.apply();
                     set_ig_round_reg.execute(0);
@@ -664,72 +721,52 @@ control Ingress(
                     worker_recirculate();
             }
             else if(hdr.tcp.isValid()){
-                // get flow_index
-                // if(hdr.udp.isValid()){
-                //     get_weightindex_UDP_table.apply();
-                // }
-                // else{             
-                //     get_weightindex_TCP_table.apply();
-                // }
+                //get flow_index
                 get_weightindex_TCP_table.apply();
+                //get meta.tail
+                meta.tail = set_and_get_tail_reg(0);
                 //get round
-                meta.round = get_ig_round_reg.execute(0);
-                // // Get weight
-                // get_weight_table.apply();
-                //get finish_time
+                meta.round = get_ig_round_reg.execute(0);   
+                //get rank
                 update_and_get_f_finish_time.apply();
-                bit<32> tmp= get_and_update_time.execute(meta.flow_index);
-                if(tmp==1){
-                    meta.pkt_rank=meta.finish_time;
-                    write_rank_reg.execute(meta.flow_index);
-                }
-                else{
-                    meta.pkt_rank=read_rank_reg.execute(meta.flow_index);
-                }
-                //get counter
-                bit<16> count_reset = set_counter_reg.execute(0);
-                if(count_reset == 1){
-                    max_rank_reg_reset_action.execute(0);
-                    min_rank_reg_reset_action.execute(0);
-                }
-                else{
-                    //Get Max and Min ranks
-                    meta.min_pkt_rank = min_rank_reg_write_action.execute(0);
-                    meta.max_pkt_rank = max_rank_reg_write_action.execute(0);
-                }
-
-                /*compute dividend (Max-rank) and divisor (Max-Min)*/
-                compute_divisor.apply();
-                compute_dividend.apply();
 
                 get_ig_queue_length.apply();
                 //compute the actual queue length (B-L)
                 subtract_queueLength.apply();
-                //find exponent of the remaining queue length (B-L) using lookup tables
 
-                queue_length_lookup.apply();
-                //find (max - min) exponent using lookup
-                max_min_lookup.apply();
+                //get quantile   meta.count_all num_wins that rank<pkt_rank 
+                meta.count_1=check_win_reg1.execute(0);
+                meta.count_2=check_win_reg2.execute(0);
+                meta.count_3=check_win_reg3.execute(0);
+                meta.count_4=check_win_reg4.execute(0);
+                meta.count_5=check_win_reg5.execute(0);
+                meta.count_6=check_win_reg6.execute(0);
+                meta.count_7=check_win_reg7.execute(0);
+                meta.count_8=check_win_reg8.execute(0);
+                meta.count_9=check_win_reg9.execute(0);
+                meta.count_10=check_win_reg10.execute(0);
+                meta.count_11=check_win_reg11.execute(0);
+                meta.count_12=check_win_reg12.execute(0);
+                meta.count_13=check_win_reg13.execute(0);
+                meta.count_14=check_win_reg14.execute(0);
+                meta.count_15=check_win_reg15.execute(0);
+                meta.count_16=check_win_reg16.execute(0);
 
-                //do multiplication of (max-min) * (B-l) using lookup tables
-                max_min_buffer_lookup.apply();
+                //get left_side B*(1-k)/n*q
+                calculate_left_side.apply();
 
-                //get exponent of dividend
-                dividend_lookup.apply();
-
-                 calculate_left_side.apply();
-
-                /* check RIFO admision condition */
-                RIFO_admission.apply();
+                /* check AIFO admision condition */
+                AIFO_admission.apply();
 
                 // one condition for all
-                // (1-K) * (rank-Min) * B >= (B-l) * (Max-Min)
+                // B*(1-k)/n*q >= B - l
 
-                if ( meta.max_pkt_rank != meta.min_pkt_rank && meta.rifo_admission == meta.left_side ) {
+                if (meta.aifo_admission == meta.left_side ) {
                     /* Drop this packet */
                     ig_dprsr_md.drop_ctl = 0x1;
                 }
             }
+
        }
     }
 }
