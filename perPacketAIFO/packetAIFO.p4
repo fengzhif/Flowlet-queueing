@@ -116,42 +116,42 @@ struct my_ingress_metadata_t {
    bit<32>      flow_index;
    bit<32>      round;
 
-   bit<16>      count_all;
-   bit<16>       count_1;
-   bit<16>       count_2;
-   bit<16>       count_3;
-   bit<16>       count_4;
-   bit<16>       count_5;
-   bit<16>       count_6;
-   bit<16>       count_7;
-   bit<16>       count_8;
-   bit<16>       count_9;
-   bit<16>       count_10;
-   bit<16>       count_11;
-   bit<16>       count_12;
-   bit<16>       count_13;
-   bit<16>       count_14;
-   bit<16>       count_15;
-   bit<16>       count_16;
-   bit<16>      tail;
+   bit<32>       count_1;
+   bit<32>       count_2;
+   bit<32>       count_3;
+   bit<32>       count_4;
+   bit<32>       count_5;
+   bit<32>       count_6;
+   bit<32>       count_7;
+   bit<32>       count_8;
+   bit<32>       count_9;
+   bit<32>       count_10;
+   bit<32>       count_11;
+   bit<32>       count_12;
+   bit<32>       count_13;
+   bit<32>       count_14;
+   bit<32>       count_15;
+   bit<32>       count_16;
+   bit<8>      tail;
 
-   bit<16>       count_1_2;
-   bit<16>       count_3_4;
-   bit<16>       count_5_6;
-   bit<16>       count_7_8;
-   bit<16>       count_9_10;
-   bit<16>       count_11_12;
-   bit<16>       count_13_14;
-   bit<16>       count_15_16;
+   bit<32>       count_1_2;
+   bit<32>       count_3_4;
+   bit<32>       count_5_6;
+   bit<32>       count_7_8;
+   bit<32>       count_9_10;
+   bit<32>       count_11_12;
+   bit<32>       count_13_14;
+   bit<32>       count_15_16;
  
-   bit<16>       count_1_2_3_4;
-   bit<16>       count_5_6_7_8;
-   bit<16>       count_9_10_11_12;
-   bit<16>       count_13_14_15_16;
+   bit<32>       count_1_2_3_4;
+   bit<32>       count_5_6_7_8;
+   bit<32>       count_9_10_11_12;
+   bit<32>       count_13_14_15_16;
 
-   bit<16>      count_1_to_8;
-   bit<16>      count_9_to_16;
+   bit<32>      count_1_to_8;
+   bit<32>      count_9_to_16;
 
+   bit<32>      count_all;
    bit<16>      queue_length;
    bit<16>      available_queue; //B-l
    bit<16>      left_side;
@@ -430,7 +430,7 @@ control Ingress(
    }
 
    action action_calculate_left_side(){
-    meta.left_side = meta.count_all << 10; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
+    meta.left_side = ((bit<16>)meta.count_all) << 10; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
    }
 
    table calculate_left_side{
@@ -485,8 +485,8 @@ control Ingress(
 
     //count
     Register<bit<32>,_> (32w1) count_test_1;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_1) check_win_reg1 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_1) check_win_reg1 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -500,8 +500,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_2;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_2) check_win_reg2 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_2) check_win_reg2 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -515,8 +515,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_3;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_3) check_win_reg3 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_3) check_win_reg3 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -530,8 +530,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_4;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_4) check_win_reg4 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_4) check_win_reg4 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -545,8 +545,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_5;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_5) check_win_reg5 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_5) check_win_reg5 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -560,8 +560,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_6;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_6) check_win_reg6 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_6) check_win_reg6 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -575,8 +575,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_7;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_7) check_win_reg7 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_7) check_win_reg7 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -590,8 +590,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_8;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_8) check_win_reg8 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_8) check_win_reg8 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -604,9 +604,10 @@ control Ingress(
 
         }
     };
+
     Register<bit<32>,_> (32w1) count_test_9;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_9) check_win_reg9 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_9) check_win_reg9 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -620,8 +621,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_10;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_10) check_win_reg10 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_10) check_win_reg10 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -635,8 +636,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_11;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_11) check_win_reg11 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_11) check_win_reg11 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -650,8 +651,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_12;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_12) check_win_reg12 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_12) check_win_reg12 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -665,8 +666,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_13;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_13) check_win_reg13 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_13) check_win_reg13 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -680,8 +681,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_14;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_14) check_win_reg14 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_14) check_win_reg14 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -695,8 +696,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_15;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_15) check_win_reg15 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_15) check_win_reg15 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -710,8 +711,8 @@ control Ingress(
         }
     };
     Register<bit<32>,_> (32w1) count_test_16;
-    RegisterAction<bit<32>,_,bit<1>> (count_test_16) check_win_reg16 = {
-        void apply(inout bit<32> value,out bit<1> result){
+    RegisterAction<bit<32>,_,bit<32>> (count_test_16) check_win_reg16 = {
+        void apply(inout bit<32> value,out bit<32> result){
             if(meta.pkt_rank > value){
                 result = 1;
             }
@@ -723,7 +724,7 @@ control Ingress(
             }
 
         }
-    };
+    }; 
 
     action add_count_1_2(){
         meta.count_1_2 = meta.count_1 + meta.count_2;
@@ -806,7 +807,9 @@ control Ingress(
             size = 1;
         }
     action add_count_1_2_3_4() {
-            meta.count_1_2_3_4 = meta.count_1_2 + meta.count_3_4;
+            @in_hash {
+                meta.count_1_2_3_4 = meta.count_1_2 + meta.count_3_4;
+            }
         }
         table add_count_1_2_3_4_table {
             actions = {
@@ -816,7 +819,9 @@ control Ingress(
             size = 1;
         }
     action add_count_5_6_7_8() {
-            meta.count_5_6_7_8 = meta.count_5_6 + meta.count_7_8;
+            @in_hash {
+                meta.count_5_6_7_8 = meta.count_5_6 + meta.count_7_8;
+            }
         }
         table add_count_5_6_7_8_table {
             actions = {
@@ -827,7 +832,9 @@ control Ingress(
         }
 
     action add_count_9_10_11_12() {
-            meta.count_9_10_11_12 = meta.count_9_10 + meta.count_11_12;
+            @in_hash {
+                meta.count_9_10_11_12 = meta.count_9_10 + meta.count_11_12;
+            }
         }
         table add_count_9_10_11_12_table {
             actions = {
@@ -838,7 +845,9 @@ control Ingress(
         }
 
     action add_count_13_14_15_16() {
-            meta.count_13_14_15_16 = meta.count_13_14 + meta.count_15_16;
+            @in_hash {
+                meta.count_13_14_15_16 = meta.count_13_14 + meta.count_15_16;
+            }
         }
         table add_count_13_14_15_16_table {
             actions = {
@@ -849,7 +858,9 @@ control Ingress(
         }
 
     action add_count_1_to_8() {
-            meta.count_1_to_8 = meta.count_1_2_3_4 + meta.count_5_6_7_8;
+            @in_hash {
+                meta.count_1_to_8 = meta.count_1_2_3_4 + meta.count_5_6_7_8;
+            }
         }
         table add_count_1_to_8_table {
             actions = {
@@ -859,7 +870,9 @@ control Ingress(
             size = 1;
         }
     action add_count_9_to_16() {
-            meta.count_9_to_16 = meta.count_9_10_11_12 + meta.count_13_14_15_16;
+            @in_hash {
+                meta.count_9_to_16 = meta.count_9_10_11_12 + meta.count_13_14_15_16;
+            }
         }
         table add_count_9_to_16_table {
             actions = {
@@ -868,16 +881,18 @@ control Ingress(
             default_action = add_count_9_to_16();
             size = 1;
         }
-    // action add_count_all() {
-    //         meta.count_all = 1 + meta.count_1_to_8;
-    //     }
-    //     table add_count_all_table {
-    //         actions = {
-    //             add_count_all();
-    //         }
-    //         default_action = add_count_all();
-    //         size = 1;
-    //     }
+    action add_count_all() {
+            @in_hash {
+                meta.count_all = meta.count_1_2_3_4;
+            }
+        }
+        table add_count_all_table {
+            actions = {
+                add_count_all();
+            }
+            default_action = add_count_all();
+            size = 1;
+        }
         
 
 
@@ -897,7 +912,7 @@ control Ingress(
                 //get flow_index
                 get_weightindex_TCP_table.apply();
                 //get meta.tail
-                meta.tail = set_and_get_tail_reg.execute(0);
+                meta.tail = (bit<8>)set_and_get_tail_reg.execute(0);
                 //get round
                 meta.round = get_ig_round_reg.execute(0);   
                 //get rank
@@ -908,42 +923,41 @@ control Ingress(
                 subtract_queueLength.apply();
 
                 //get quantile   meta.count_all num_wins that rank<pkt_rank 
-                meta.count_1=(bit<16>)check_win_reg1.execute(0);
-                meta.count_2=(bit<16>)check_win_reg2.execute(0);
-                meta.count_3=(bit<16>)check_win_reg3.execute(0);
-                meta.count_4=(bit<16>)check_win_reg4.execute(0);
-                meta.count_5=(bit<16>)check_win_reg5.execute(0);
-                meta.count_6=(bit<16>)check_win_reg6.execute(0);
-                meta.count_7=(bit<16>)check_win_reg7.execute(0);
-                meta.count_8=(bit<16>)check_win_reg8.execute(0);
-                meta.count_9=(bit<16>)check_win_reg9.execute(0);
-                meta.count_10=(bit<16>)check_win_reg10.execute(0);
-                meta.count_11=(bit<16>)check_win_reg11.execute(0);
-                meta.count_12=(bit<16>)check_win_reg12.execute(0);
-                meta.count_13=(bit<16>)check_win_reg13.execute(0);
-                meta.count_14=(bit<16>)check_win_reg14.execute(0);
-                meta.count_15=(bit<16>)check_win_reg15.execute(0);
-                meta.count_16=(bit<16>)check_win_reg16.execute(0);
+                meta.count_1=check_win_reg1.execute(0);
+                meta.count_2=check_win_reg2.execute(0);
+                meta.count_3=check_win_reg3.execute(0);
+                meta.count_4=check_win_reg4.execute(0);
+                // meta.count_5=check_win_reg5.execute(0);
+                // meta.count_6=check_win_reg6.execute(0);
+                // meta.count_7=check_win_reg7.execute(0);
+                // meta.count_8=check_win_reg8.execute(0);
+                // meta.count_9=check_win_reg9.execute(0);
+                // meta.count_10=check_win_reg10.execute(0);
+                // meta.count_11=check_win_reg11.execute(0);
+                // meta.count_12=check_win_reg12.execute(0);
+                // meta.count_13=check_win_reg13.execute(0);
+                // meta.count_14=check_win_reg14.execute(0);
+                // meta.count_15=check_win_reg15.execute(0);
+                // meta.count_16=check_win_reg16.execute(0); 
 
                 add_count_1_2_table.apply();
                 add_count_3_4_table.apply();
-                add_count_5_6_table.apply();
-                add_count_7_8_table.apply();
-                add_count_9_10_table.apply();
-                add_count_11_12_table.apply();
-                add_count_13_14_table.apply();
-                add_count_15_16_table.apply();
+                // add_count_5_6_table.apply();
+                // add_count_7_8_table.apply();
+                // add_count_9_10_table.apply();
+                // add_count_11_12_table.apply();
+                // add_count_13_14_table.apply();
+                // add_count_15_16_table.apply();
 
                 add_count_1_2_3_4_table.apply();
-                add_count_5_6_7_8_table.apply();
-                add_count_9_10_11_12_table.apply();
-                add_count_13_14_15_16_table.apply();
+                // add_count_5_6_7_8_table.apply();
+                // add_count_9_10_11_12_table.apply();
+                // add_count_13_14_15_16_table.apply();
 
-                add_count_1_to_8_table.apply();
-                add_count_9_to_16_table.apply();
+                // add_count_1_to_8_table.apply();
+                // add_count_9_to_16_table.apply();
                 
-                // add_count_all_table.apply();
-                meta.count_all=meta.count_1_to_8+meta.count_9_to_16;
+                add_count_all_table.apply();
 
                 //get left_side B*(1-k)/n*q
                 calculate_left_side.apply();
