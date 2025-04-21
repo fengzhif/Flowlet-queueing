@@ -6,7 +6,7 @@
 **************************************************************************/
 const bit<16> BufferSize=25000;
 const PortId_t OutputPort = 156;
-const bit<8>  CounterLimit = 500;
+const bit<16>  CounterLimit = 500;
 const bit<32> round_add=1;
 
 #define WORKER_PORT 9001
@@ -398,9 +398,9 @@ control Ingress(
     };
 
     //counter
-    Register<bit<8>,_>(32w1) countReg;
-    RegisterAction<bit<8>,_,bit<8>>(countReg) set_counter_reg = {
-        void apply(inout bit<8> value,out bit<8> result){
+    Register<bit<16>,_>(32w1) countReg;
+    RegisterAction<bit<16>,_,bit<16>>(countReg) set_counter_reg = {
+        void apply(inout bit<16> value,out bit<16> result){
             if(value == CounterLimit){
                 result = 1;
                 value = 1;
@@ -652,7 +652,7 @@ control Ingress(
                 // meta.pkt_rank = update_and_get_f_finish_time.execute(meta.flow_index);
                 update_and_get_f_finish_time.apply();
                 //get counter
-                bit<8> count_reset = set_counter_reg.execute(0);
+                bit<16> count_reset = set_counter_reg.execute(0);
                 if(count_reset == 1){
                     max_rank_reg_reset_action.execute(0);
                     min_rank_reg_reset_action.execute(0);
