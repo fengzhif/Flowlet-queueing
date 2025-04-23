@@ -4,9 +4,9 @@
 /*************************************************************************
 ************* C O N S T A N T S    A N D   T Y P E S  *******************
 **************************************************************************/
-const bit<16> BufferSize=25000;
+const bit<20> BufferSize=524289;
 const PortId_t OutputPort = 156;
-const bit<16>  CounterLimit = 500;
+const bit<16>  CounterLimit = 50;
 const bit<32> round_add=1;
 
 #define WORKER_PORT 9001
@@ -87,7 +87,7 @@ header udp_h {
 }
 
 header worker_h {
-    bit<16>     qlength;    // Queue occupancy in cells
+    bit<32>     qlength;    // Queue occupancy in cells
     bit<32>     qid;
     bit<32>     round;      //virtual_time
     bit<32>     round_index;
@@ -118,8 +118,8 @@ struct my_ingress_metadata_t {
 //    bit<32>      weight;
    bit<32>      round;
 
-   bit<16>      queue_length;
-   bit<16>      available_queue; //B-l
+   bit<20>      queue_length;
+   bit<20>      available_queue; //B-l
    bit<32>      min_pkt_rank;
    bit<32>      max_pkt_rank;
    bit<16>      dividend; //rp-Min
@@ -413,15 +413,15 @@ control Ingress(
     };
 
    // register to store the queue length (l)
-    Register<bit<16>, bit<5>> (32,0) ig_queue_length_reg;
-    RegisterAction<bit<16>, bit<5>, bit<16>>(ig_queue_length_reg) ig_queue_length_reg_write = {
-       void apply(inout bit<16> value, out bit<16> read_value){
+    Register<bit<32>, bit<5>> (32,0) ig_queue_length_reg;
+    RegisterAction<bit<32>, bit<5>, bit<32>>(ig_queue_length_reg) ig_queue_length_reg_write = {
+       void apply(inout bit<32> value, out bit<32> read_value){
             value=hdr.worker.qlength;
             read_value = value;
        }
    };
-   RegisterAction<bit<16>, bit<5>, bit<16>>(ig_queue_length_reg) ig_queue_length_reg_read = {
-       void apply(inout bit<16> value, out bit<16> read_value){
+   RegisterAction<bit<32>, bit<5>, bit<32>>(ig_queue_length_reg) ig_queue_length_reg_read = {
+       void apply(inout bit<32> value, out bit<32> read_value){
                read_value = value;
        }
    };
@@ -489,7 +489,7 @@ control Ingress(
     }
 
    action action_subtract_queueLength() {
-           meta.available_queue=(bit<16>) (BufferSize - meta.queue_length);
+           meta.available_queue=BufferSize - meta.queue_length;
        }
 
     table subtract_queueLength{
@@ -516,7 +516,7 @@ control Ingress(
    }
 
    action action_calculate_left_side(){
-    meta.left_side =(bit<24>) meta.dividend_exponent + 14; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
+    meta.left_side =(bit<24>) meta.dividend_exponent + 18; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
    }
 
    table calculate_left_side{
@@ -586,8 +586,8 @@ control Ingress(
    }
 
    action action_get_ig_queue_length(){
-        meta.queue_length=ig_queue_length_reg_read.execute(0);
-
+        bit<32> tmp=ig_queue_length_reg_read.execute(0);
+        meta.queue_length=tmp[19:0];
    }
 
    table get_ig_queue_length {
@@ -786,15 +786,15 @@ control Egress(
         }
     };
 
-    Register<bit<16>, _>(32w1) eg_queue_length_reg;
-    RegisterAction<bit<16>, _, bit<16>>(eg_queue_length_reg) eg_queue_length_reg_write = {
-       void apply(inout bit<16> value, out bit<16> read_value){
-            value = eg_intr_md.deq_qdepth[15:0];
+    Register<bit<32>, _>(32w1) eg_queue_length_reg;
+    RegisterAction<bit<32>, _, bit<32>>(eg_queue_length_reg) eg_queue_length_reg_write = {
+       void apply(inout bit<32> value, out bit<32> read_value){
+            value = (bit<32>)eg_intr_md.deq_qdepth;
             read_value = value;
        }
    };
-   RegisterAction<bit<16>, _, bit<16>>(eg_queue_length_reg) eg_queue_length_reg_read = {
-       void apply(inout bit<16> value, out bit<16> read_value){
+   RegisterAction<bit<32>, _, bit<32>>(eg_queue_length_reg) eg_queue_length_reg_read = {
+       void apply(inout bit<32> value, out bit<32> read_value){
             read_value = value;
        }
    };
