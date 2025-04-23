@@ -37,7 +37,7 @@ struct udp_hdr {
 } __attribute__((__packed__));
 
 struct worker_hdr {
-	uint16_t queue_length;
+	uint32_t queue_length;
 	uint32_t qid;
 	uint32_t round;
 	uint32_t round_index;
