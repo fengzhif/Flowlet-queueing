@@ -161,7 +161,7 @@ try:
     key_max_min = "meta.max_min_exponent"
     key_buffer = "meta.buffer_exponent"
     for i in range(1,17):
-        for j in range(1,17):
+        for j in range(1,22):
             mul=i+j
             match_table_MaxMinBuffer.entry_add(
                 target,
