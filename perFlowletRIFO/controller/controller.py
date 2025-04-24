@@ -66,7 +66,7 @@ tcpflownum = 3
 tcp_flows = {}
 
 tcp_addr=["10.0.0.1","10.0.0.2","10.0.0.3"]
-tcp_weights = [2,4,8]
+tcp_weights = [2,2,2]
 dst_addr="10.0.0.4"
 
 for i in range(0,tcpflownum):
@@ -124,7 +124,7 @@ finally:
 match_table_queueLength = bfrt_info.table_get("Ingress.queue_length_lookup")
 try:
     keyname = "meta.available_queue"
-    for i in range(0,16):
+    for i in range(0,22):
         available_queue_start = i*1500
         available_queue_end = available_queue_start + 1499
         # available_queue = 2**(i-1)
