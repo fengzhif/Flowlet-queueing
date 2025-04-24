@@ -130,9 +130,9 @@ struct my_ingress_metadata_t {
    bit<24>      rifo_admission;
    bit<32>      rank_range;
    bit<16>      max_min;
-   bit<5>       max_min_exponent; //Max-Min
-   bit<5>       buffer_exponent; //B-l
-   bit<5>       dividend_exponent; //rp-Min
+   bit<8>       max_min_exponent; //Max-Min
+   bit<8>       buffer_exponent; //B-l
+   bit<8>       dividend_exponent; //rp-Min
 
 }
     /***********************  P A R S E R  **************************/
