@@ -399,7 +399,7 @@ control Ingress(
     };
 
     //timestamp:
-    Register<bit<32>,bit<32>> (512) TimestampReg;
+    Register<bit<32>,bit<32>> (512,0) TimestampReg;
     RegisterAction<bit<32>,bit<32>,bit<32>> (TimestampReg) get_and_update_time = {
         void apply(inout bit<32> value,out bit<32> result){
             if (ig_prsr_md.global_tstamp[31:0]-value>500000){
@@ -428,7 +428,7 @@ control Ingress(
     };
 
     //rank
-    Register<bit<32>,bit<32>> (512) RankReg;
+    Register<bit<32>,bit<32>> (512,0) RankReg;
     RegisterAction<bit<32>,bit<32>,bit<32>> (RankReg) read_rank_reg = {
         void apply(inout bit<32> value,out bit<32> result){
             result=value;
