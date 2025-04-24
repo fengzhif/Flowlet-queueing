@@ -546,7 +546,7 @@ control Ingress(
 //    action set_rank(){
 //        hdr.rifo.rank =(bit<16>) hdr.ipv4.src_addr[7:0];
 //     }
-   action set_exponent_buffer(bit<5> exponent_value){
+   action set_exponent_buffer(bit<8> exponent_value){
        meta.buffer_exponent = exponent_value ;
     }
    table queue_length_lookup {
@@ -559,7 +559,7 @@ control Ingress(
        size = 512;
    }
 
-    action set_exponent_dividend(bit<5> exponent_value){
+    action set_exponent_dividend(bit<8> exponent_value){
        meta.dividend_exponent= exponent_value ;
     }
    table dividend_lookup {
@@ -572,7 +572,7 @@ control Ingress(
        size = 512;
    }
 
-   action set_exponent_max_min(bit<5> exponent_value){
+   action set_exponent_max_min(bit<8> exponent_value){
        meta.max_min_exponent= exponent_value ;
     }
    table max_min_lookup {
