@@ -66,26 +66,27 @@ tcpflownum = 3
 tcp_flows = {}
 
 tcp_addr=["10.0.0.1","10.0.0.2","10.0.0.3"]
-tcp_weights = [2,2,2]
+tcp_weights = [2,16,32]
 dst_addr="10.0.0.4"
 
-for i in range(0,tcpflownum):
-    tcp_flows[flowindex] = flow(flowindex,tcp_addr[i%tcpflownum],srcport_current,dst_addr,dstport_current,"TCP",tcp_weights[i])
-    flowindex+=1
-    dstport_current+=1
-    srcport_current+=1
+# for i in range(0,tcpflownum):
+#     tcp_flows[flowindex] = flow(flowindex,tcp_addr[i%tcpflownum],srcport_current,dst_addr,dstport_current,"TCP",tcp_weights[i])
+#     flowindex+=1
+#     dstport_current+=1
+#     srcport_current+=1
     
-
-# tcpFlowNumPerHost=15
-# dst_port_start=[8100,8200,8300]
-# src_port_start=[9100,9200,9300]
-# weights_per_host=[2,4,16]
-# for host_index in range(3):    
-#     for i in range(tcpFlowNumPerHost):
-#         tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[i//5])
-#         flowindex+=1
-#         src_port_start[host_index]+=1
-#         dst_port_start[host_index]+=1
+tcpFlowNumPerHost=1
+dst_port_start=[8100,8200,8300]
+src_port_start=[9100,9200,9300]
+weights_per_host=[2,16,32]
+for host_index in range(3):    
+    for i in range(tcpFlowNumPerHost):
+        weight_index=i*3//tcpFlowNumPerHost
+        # tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[weight_index])
+        tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[host_index])
+        flowindex+=1
+        src_port_start[host_index]+=1
+        dst_port_start[host_index]+=1
 
 #Ingress
 #data packet
@@ -120,14 +121,28 @@ finally:
 
 #get finish_time_add
 match_table_finishTime = bfrt_info.table_get("Ingress.update_and_get_f_finish_time")
+# try:
+#     keyname = "meta.flow_index"
+#     for i in range(3):
+#         match_table_finishTime.entry_add(
+#             target,
+#             [match_table_finishTime.make_key([client.KeyTuple(keyname,i)])],
+#             [match_table_finishTime.make_data([client.DataTuple("flow_index",i)],action_name = "Ingress.update_and_get_f_finish_time"+str(tcp_weights[i]))]
+#         )
+# finally:
+#     pass
 try:
     keyname = "meta.flow_index"
-    for i in range(3):
-        match_table_finishTime.entry_add(
-            target,
-            [match_table_finishTime.make_key([client.KeyTuple(keyname,i)])],
-            [match_table_finishTime.make_data([client.DataTuple("flow_index",i)],action_name = "Ingress.update_and_get_f_finish_time"+str(tcp_weights[i]))]
-        )
+    for host_index in range(3):    
+        for i in range(tcpFlowNumPerHost):
+            weight_index=i*3//tcpFlowNumPerHost
+            cur_index=host_index*tcpFlowNumPerHost+i
+            match_table_finishTime.entry_add(
+                target,
+                [match_table_finishTime.make_key([client.KeyTuple(keyname,cur_index)])],
+                # [match_table_finishTime.make_data([client.DataTuple("flow_index",cur_index)],action_name = "Ingress.update_and_get_f_finish_time"+str(weights_per_host[weight_index]))] 
+                [match_table_finishTime.make_data([client.DataTuple("flow_index",cur_index)],action_name = "Ingress.update_and_get_f_finish_time"+str(weights_per_host[host_index]))] 
+            )
 finally:
     pass
 
