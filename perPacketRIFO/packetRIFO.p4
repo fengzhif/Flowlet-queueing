@@ -6,7 +6,7 @@
 **************************************************************************/
 const bit<20> BufferSize=524289;
 const PortId_t OutputPort = 156;
-const bit<16>  CounterLimit = 50;
+const bit<16>  CounterLimit = 250;
 const bit<32> round_add=1;
 
 #define WORKER_PORT 9001
@@ -396,6 +396,17 @@ control Ingress(
             result = value;  
         }
     };
+    RegisterAction<bit<32>,bit<32>,bit<32>> (Packet_Sent_Reg) regact_update_and_get_f_finish_time32 = {
+        void apply(inout bit<32> value,out bit<32> result){ 
+            if(value >= meta.round){
+                value = value + 32;
+            }
+            else{
+                value = meta.round + 32; 
+            }
+            result = value;  
+        }
+    };
 
     //counter
     Register<bit<16>,_>(32w1) countReg;
@@ -474,6 +485,10 @@ control Ingress(
     action update_and_get_f_finish_time16(bit<32> flow_index) {
         meta.pkt_rank = regact_update_and_get_f_finish_time16.execute(flow_index);
     }
+    
+    action update_and_get_f_finish_time32(bit<32> flow_index) {
+        meta.pkt_rank = regact_update_and_get_f_finish_time32.execute(flow_index);
+    }
 
     table update_and_get_f_finish_time {
         key = {
@@ -481,9 +496,10 @@ control Ingress(
         }
         actions = {
             update_and_get_f_finish_time2;
-            update_and_get_f_finish_time4;
+            // update_and_get_f_finish_time4;
             update_and_get_f_finish_time8;
             update_and_get_f_finish_time16;
+            update_and_get_f_finish_time32;
         }
         size = 128;
     }

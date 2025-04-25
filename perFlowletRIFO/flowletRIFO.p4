@@ -397,6 +397,17 @@ control Ingress(
             result = value;  
         }
     };
+    RegisterAction<bit<32>,bit<32>,bit<32>> (Packet_Sent_Reg) regact_update_and_get_f_finish_time32 = {
+        void apply(inout bit<32> value,out bit<32> result){ 
+            if(value >= meta.round){
+                value = value + 32;
+            }
+            else{
+                value = meta.round + 32; 
+            }
+            result = value;  
+        }
+    };
 
     //timestamp:
     Register<bit<32>,bit<32>> (512,0) TimestampReg;
@@ -503,15 +514,20 @@ control Ingress(
         meta.finish_time = regact_update_and_get_f_finish_time16.execute(flow_index);
     }
 
+    action update_and_get_f_finish_time32(bit<32> flow_index) {
+        meta.finish_time = regact_update_and_get_f_finish_time32.execute(flow_index);
+    }
+
     table update_and_get_f_finish_time {
         key = {
             meta.flow_index: exact;
         }
         actions = {
             update_and_get_f_finish_time2;
-            update_and_get_f_finish_time4;
+            // update_and_get_f_finish_time4;
             update_and_get_f_finish_time8;
             update_and_get_f_finish_time16;
+            update_and_get_f_finish_time32;
         }
         size = 128;
     }
