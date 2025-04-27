@@ -75,15 +75,15 @@ dst_addr="10.0.0.4"
 #     dstport_current+=1
 #     srcport_current+=1
     
-tcpFlowNumPerHost=1
+tcpFlowNumPerHost=15
 dst_port_start=[8100,8200,8300]
 src_port_start=[9100,9200,9300]
 weights_per_host=[2,16,32]
 for host_index in range(3):    
     for i in range(tcpFlowNumPerHost):
         weight_index=i*3//tcpFlowNumPerHost
-        # tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[weight_index])
-        tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[host_index])
+        tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[weight_index])
+        # tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[host_index])
         flowindex+=1
         src_port_start[host_index]+=1
         dst_port_start[host_index]+=1
@@ -140,8 +140,8 @@ try:
             match_table_finishTime.entry_add(
                 target,
                 [match_table_finishTime.make_key([client.KeyTuple(keyname,cur_index)])],
-                # [match_table_finishTime.make_data([client.DataTuple("flow_index",cur_index)],action_name = "Ingress.update_and_get_f_finish_time"+str(weights_per_host[weight_index]))] 
-                [match_table_finishTime.make_data([client.DataTuple("flow_index",cur_index)],action_name = "Ingress.update_and_get_f_finish_time"+str(weights_per_host[host_index]))] 
+                [match_table_finishTime.make_data([client.DataTuple("flow_index",cur_index)],action_name = "Ingress.update_and_get_f_finish_time"+str(weights_per_host[weight_index]))] 
+                # [match_table_finishTime.make_data([client.DataTuple("flow_index",cur_index)],action_name = "Ingress.update_and_get_f_finish_time"+str(weights_per_host[host_index]))] 
             )
 finally:
     pass
@@ -150,9 +150,9 @@ finally:
 match_table_queueLength = bfrt_info.table_get("Ingress.queue_length_lookup")
 try:
     keyname = "meta.available_queue"
-    for i in range(0,22):
-        available_queue_start = i*1500
-        available_queue_end = available_queue_start + 1499
+    for i in range(0,17):
+        available_queue_start = 1<<i
+        available_queue_end = (1<<(i+1))-1
         # available_queue = 2**(i-1)
         # available_queue_mask = bytearray(((1 << i) - 1).to_bytes(2, byteorder='big'))
         exponent_value = int(i)
