@@ -4,9 +4,9 @@
 /*************************************************************************
 ************* C O N S T A N T S    A N D   T Y P E S  *******************
 **************************************************************************/
-const bit<20> BufferSize=524289;
+const bit<20> BufferSize=25000;
 const PortId_t OutputPort = 156;
-const bit<16>  CounterLimit = 250;
+const bit<16>  CounterLimit = 50;
 const bit<32> round_add=1;
 
 #define WORKER_PORT 9001
@@ -304,19 +304,19 @@ control Ingress(
 
 
     // //table getweightUDP
-    // action get_weightindex_UDP(bit<32> flow_idx){
-    //     meta.flow_index = flow_idx;      //flow_index
-    // }
-    // table get_weightindex_UDP_table{
-    //     key = {
-    //         hdr.ipv4.src_addr: exact;
-    //         hdr.udp.dst_port : exact;
-    //     }
-    //     actions = {
-    //         get_weightindex_UDP;
-    //     }   
-    //     size = 512;
-    // }
+    action get_weightindex_UDP(bit<32> flow_idx){
+        meta.flow_index = flow_idx;      //flow_index
+    }
+    table get_weightindex_UDP_table{
+        key = {
+            hdr.ipv4.src_addr: exact;
+            hdr.udp.dst_port : exact;
+        }
+        actions = {
+            get_weightindex_UDP;
+        }   
+        size = 512;
+    }
 
 
     //ingress round register
@@ -532,7 +532,7 @@ control Ingress(
    }
 
    action action_calculate_left_side(){
-    meta.left_side =(bit<24>) meta.dividend_exponent + 18; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
+    meta.left_side =(bit<24>) meta.dividend_exponent + 13; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
    }
 
    table calculate_left_side{
@@ -651,17 +651,17 @@ control Ingress(
                     ig_dprsr_md.drop_ctl = 0;
                     worker_recirculate();
             }
-            else if(hdr.tcp.isValid()){
+            else if(hdr.tcp.isValid()||hdr.udp.isValid()){
                 // get flow_index
-                // if(hdr.udp.isValid()){
-                //     get_weightindex_UDP_table.apply();
-                // }
-                // else{             
-                //     get_weightindex_TCP_table.apply();
-                // }
-                get_weightindex_TCP_table.apply();
-                //get round
-                meta.round = get_ig_round_reg.execute(0);
+                if(hdr.udp.isValid()){
+                    get_weightindex_UDP_table.apply();
+                }
+                else{             
+                    get_weightindex_TCP_table.apply();
+                }
+                // get_weightindex_TCP_table.apply();
+                // get round
+                // meta.round = get_ig_round_reg.execute(0);
                 // Get weight  meta.weight没被使用时，无法通过下流表项为其赋值
                 // get_weight_table.apply();
                 //get rank
@@ -707,8 +707,10 @@ control Ingress(
                 // (1-K) * (rank-Min) * B >= (B-l) * (Max-Min)
 
                 if ( meta.max_pkt_rank != meta.min_pkt_rank && meta.rifo_admission == meta.left_side ) {
-                    /* Drop this packet */
-                    ig_dprsr_md.drop_ctl = 0x1;
+                    if(meta.left_side != meta.right_side){
+                        /* Drop this packet */
+                        ig_dprsr_md.drop_ctl = 0x1;
+                    }
                 }
             }
        }
@@ -805,7 +807,7 @@ control Egress(
     Register<bit<32>, _>(32w1) eg_queue_length_reg;
     RegisterAction<bit<32>, _, bit<32>>(eg_queue_length_reg) eg_queue_length_reg_write = {
        void apply(inout bit<32> value, out bit<32> read_value){
-            value = (bit<32>)eg_intr_md.deq_qdepth;
+            value = (bit<32>)eg_intr_md.deq_qdepth[15:0];
             read_value = value;
        }
    };

@@ -60,13 +60,12 @@ finally:
     pass
 
 flowindex = 0
-dstport_current = 8010
-srcport_current = 9010
-tcpflownum = 3
+# dstport_current = 8010
+# srcport_current = 9010
+# tcpflownum = 3
 tcp_flows = {}
 
 tcp_addr=["10.0.0.1","10.0.0.2","10.0.0.3"]
-tcp_weights = [2,16,32]
 dst_addr="10.0.0.4"
 
 # for i in range(0,tcpflownum):
@@ -75,13 +74,19 @@ dst_addr="10.0.0.4"
 #     dstport_current+=1
 #     srcport_current+=1
     
-tcpFlowNumPerHost=15
+tcpFlowNumPerHost=13
 dst_port_start=[8100,8200,8300]
 src_port_start=[9100,9200,9300]
 weights_per_host=[2,16,32]
 for host_index in range(3):    
     for i in range(tcpFlowNumPerHost):
-        weight_index=i*3//tcpFlowNumPerHost
+        # weight_index=i*3//tcpFlowNumPerHost
+        if i==0:
+            weight_index=0
+        elif (i>=1 and i<=4):
+            weight_index=1
+        else:
+            weight_index=2
         tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[weight_index])
         # tcp_flows[flowindex] = flow(flowindex,tcp_addr[host_index],src_port_start[host_index],dst_addr,dst_port_start[host_index],"TCP",weights_per_host[host_index])
         flowindex+=1
@@ -105,19 +110,35 @@ try:
 finally:
     pass
 
+udp_flows=tcp_flows
+#table get UDP index
+match_table_UDPIndex = bfrt_info.table_get("Ingress.get_weightindex_UDP_table")
+match_table_UDPIndex.info.key_field_annotation_add("hdr.ipv4.src_addr", "ipv4")
+try:
+    key_src = "hdr.ipv4.src_addr"
+    key_dst = "hdr.udp.dst_port"
+    for udpflow in udp_flows.values():
+        match_table_UDPIndex.entry_add(
+            target,
+            [match_table_UDPIndex.make_key([client.KeyTuple(key_src,udpflow.srcIP),client.KeyTuple(key_dst,udpflow.dstPort)])],
+            [match_table_UDPIndex.make_data([client.DataTuple("flow_idx",udpflow.index)],action_name = "Ingress.get_weightindex_UDP")]
+        )
+finally:
+    pass
 
-# #get weight 1/wf  TCP
-# match_table_getweight = bfrt_info.table_get("Ingress.get_weight_table")
-# try:
-#     keyname = "meta.flow_index"
-#     for tcpflow in tcp_flows.values():
-#         match_table_getweight.entry_add(
-#             target,
-#             [match_table_getweight.make_key([client.KeyTuple(keyname,tcpflow.index)])],
-#             [match_table_getweight.make_data([client.DataTuple("weight",tcpflow.weight)],action_name = "Ingress.get_weight_action")]
-#         )
-# finally:
-#     pass
+
+#get weight 1/wf  TCP
+match_table_getweight = bfrt_info.table_get("Ingress.get_weight_table")
+try:
+    keyname = "meta.flow_index"
+    for tcpflow in tcp_flows.values():
+        match_table_getweight.entry_add(
+            target,
+            [match_table_getweight.make_key([client.KeyTuple(keyname,tcpflow.index)])],
+            [match_table_getweight.make_data([client.DataTuple("weight",tcpflow.weight)],action_name = "Ingress.get_weight_action")]
+        )
+finally:
+    pass
 
 #get finish_time_add
 match_table_finishTime = bfrt_info.table_get("Ingress.update_and_get_f_finish_time")
@@ -135,7 +156,13 @@ try:
     keyname = "meta.flow_index"
     for host_index in range(3):    
         for i in range(tcpFlowNumPerHost):
-            weight_index=i*3//tcpFlowNumPerHost
+            # weight_index=i*3//tcpFlowNumPerHost
+            if i==0:
+                weight_index=0
+            elif (i>=1 and i<=4):
+                weight_index=1
+            else:
+                weight_index=2
             cur_index=host_index*tcpFlowNumPerHost+i
             match_table_finishTime.entry_add(
                 target,
