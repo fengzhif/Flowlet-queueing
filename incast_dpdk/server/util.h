@@ -57,6 +57,36 @@
 
 #define RSS_HASH_KEY_LENGTH 40
 
+FILE *output_file = NULL;
+char flow_client[][5]={
+    "8100", "8101", "8102", "8103", "8104",
+    "8105", "8106", "8107", "8108", "8109",
+    "8110", "8111", "8112", 
+    "8200", "8201", "8202", "8203", "8204",
+    "8205", "8206", "8207", "8208", "8209",
+    "8210", "8211", "8212",
+    "8300", "8301", "8302", "8303", "8304",
+    "8305", "8306", "8307", "8308", "8309",
+    "8310", "8311", "8312"
+};
+
+// 打开文件
+static void open_output_file(void) {
+    output_file = fopen("alldata", "w"); // 以写模式打开文件
+    if (output_file == NULL) {
+        perror("Failed to open file alldata");
+        exit(EXIT_FAILURE);
+    }
+}
+
+// 关闭文件
+static void close_output_file(void) {
+    if (output_file != NULL) {
+        fclose(output_file);
+        output_file = NULL;
+    }
+}
+
 static uint8_t hash_key[RSS_HASH_KEY_LENGTH] = {
     0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
     0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
@@ -136,7 +166,7 @@ struct throughput_statistics {
  * global variables
  */
 
-uint32_t num_worker = 9;
+uint32_t num_worker = 39;
 // uint32_t num_worker = 32;
 uint32_t enabled_port_mask = 1;
 uint32_t enabled_ports[RTE_MAX_ETHPORTS];
@@ -492,6 +522,45 @@ static void print_per_core_throughput(void) {
         "dropped: %"PRIu64"\n",
         total_tx, total_rx, total_dropped);
     fflush(stdout);
+}
+static void print_per_core_throughput_file(void) {
+    if (output_file == NULL) {
+        fprintf(stderr, "Output file is not open\n");
+        return;
+    }
+    // time is in second
+    fprintf(output_file,"%lld\n", (long long)time(NULL));
+    uint32_t i;
+    uint64_t total_tx = 0;
+    uint64_t total_rx = 0;
+    uint64_t total_dropped = 0;
+    //for (i = 0; i < n_lcores; i++) {
+    for (i = 0; i < num_worker; i++) {
+        fprintf(output_file,"\tcore %"PRIu32"\t"
+            "tx: %"PRIu64"\t"
+            "rx: %"PRIu64"\t"
+            "rx_read: %"PRIu64"\t"
+            "rx_write: %"PRIu64"\t"
+            "dropped: %"PRIu64"\n",
+            i, tput_stat[i].tx - tput_stat[i].last_tx,
+            tput_stat[i].rx - tput_stat[i].last_rx,
+            tput_stat[i].rx_read - tput_stat[i].last_rx_read,
+            tput_stat[i].rx_write - tput_stat[i].last_rx_write,
+            tput_stat[i].dropped - tput_stat[i].last_dropped);
+        total_tx += tput_stat[i].tx - tput_stat[i].last_tx;
+        total_rx += tput_stat[i].rx - tput_stat[i].last_rx;
+        total_dropped += tput_stat[i].dropped - tput_stat[i].last_dropped;
+        tput_stat[i].last_tx = tput_stat[i].tx;
+        tput_stat[i].last_rx = tput_stat[i].rx;
+        tput_stat[i].last_rx_read = tput_stat[i].rx_read;
+        tput_stat[i].last_rx_write = tput_stat[i].rx_write;
+        tput_stat[i].last_dropped = tput_stat[i].dropped;
+    }
+    // fprintf(output_file,"\ttotal\ttx: %"PRIu64"\t"
+    //     "rx: %"PRIu64"\t"
+    //     "dropped: %"PRIu64"\n",
+    //     total_tx, total_rx, total_dropped);
+    fflush(output_file);
 }
 
 // print throughput

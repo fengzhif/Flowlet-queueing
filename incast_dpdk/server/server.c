@@ -43,6 +43,23 @@ uint32_t average_interval = 32;
 
 int tot_count[10] = {0};
 
+uint8_t findIndex(uint16_t dst_port) {
+    // 将目的端口转换为字符串
+    char port_str[6]; // 足够存储 5 位数字和终止符
+    snprintf(port_str, sizeof(port_str), "%u", dst_port);
+
+    // 遍历 flow_client 数组，查找匹配的端口
+    uint8_t i;
+    for ( i = 0; i < sizeof(flow_client) / sizeof(flow_client[0]); i++) {
+        if (strcmp(port_str, flow_client[i]) == 0) {
+            return i; // 返回匹配的下标
+        }
+    }
+
+    // 如果未找到匹配项，返回一个无效值（例如 255）
+    return -1;
+}
+
 static void process_packet_client(uint32_t lcore_id, struct rte_mbuf *mbuf) {
     struct lcore_configuration *lconf = &lcore_conf[lcore_id];
 
@@ -58,9 +75,11 @@ static void process_packet_client(uint32_t lcore_id, struct rte_mbuf *mbuf) {
 
     // uint8_t stat_idx = ntohs(udp->dst_port) - 9000;
 
-    uint8_t stat_idx = ntohs(message_header->rank);
+    // uint8_t stat_idx = ntohs(message_header->rank);
+    uint16_t dst_port = ntohs(udp->dst_port);
+    uint8_t stat_idx = findIndex(dst_port);
 
-    tput_stat[stat_idx].rx += 4 * 8 * (sizeof(MessageHeader) + sizeof(struct udp_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct ether_hdr));
+    tput_stat[stat_idx].rx += 4 * (sizeof(MessageHeader) + sizeof(struct udp_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct ether_hdr));
 }
 
 // RX loop for test
@@ -74,7 +93,7 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
     uint32_t i, j, nb_rx;
     uint32_t avg_count = 100;
     uint64_t cur_tsc = rte_rdtsc();
-    uint64_t update_tsc = rte_get_tsc_hz() / 4; // in second
+    uint64_t update_tsc = rte_get_tsc_hz() ; // in second
     uint64_t next_update_tsc = cur_tsc + update_tsc;
     uint64_t adjust_tsc = rte_get_tsc_hz();
     uint64_t next_adjust_tsc = cur_tsc + adjust_tsc;
@@ -83,6 +102,7 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
     // uint64_t average_end_tsc = average_start_tsc + update_tsc * 32;
     uint64_t rx_array[150] = {};
     uint32_t rx_idx = 0;
+    open_output_file();
     while (1) {
         // read current time
         cur_tsc = rte_rdtsc();
@@ -90,7 +110,8 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
         // print stats at master lcore
         if ((lcore_id == rte_get_master_lcore()) && (update_tsc > 0)) {
             if (unlikely(cur_tsc > next_update_tsc)) {
-                print_per_core_throughput();
+                // print_per_core_throughput();
+                print_per_core_throughput_file();
                 //print_latency(latency_stat_b);
                 next_update_tsc += update_tsc;
             }
@@ -198,6 +219,7 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
             }
         }
     }
+    close_output_file();
     return 0;
 }
 
