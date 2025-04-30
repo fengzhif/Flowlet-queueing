@@ -58,6 +58,7 @@
 #define RSS_HASH_KEY_LENGTH 40
 
 FILE *output_file = NULL;
+FILE *output_dbg_file = NULL;
 char flow_client[][5]={
     "8100", "8101", "8102", "8103", "8104",
     "8105", "8106", "8107", "8108", "8109",
@@ -69,6 +70,21 @@ char flow_client[][5]={
     "8305", "8306", "8307", "8308", "8309",
     "8310", "8311", "8312"
 };
+
+typedef struct Dbg_data {
+    uint16_t dst_port;
+    uint32_t seq;
+    uint32_t rank;
+    uint32_t rifo_min;
+    uint32_t rifo_max;
+    uint32_t len;
+    uint32_t counter;
+    uint32_t enq_depth;
+    uint32_t deq_depth;
+    uint32_t round;
+} Dbg_data;
+Dbg_data Dbg_data_table[5000000];
+uint32_t Dbg_data_table_idx = 0;
 
 // 打开文件
 static void open_output_file(void) {
@@ -128,10 +144,18 @@ static const struct rte_eth_conf port_conf = {
  */
 
 typedef struct MessageHeader_ {
+    uint32_t seq;
     uint32_t rank;
-    // uint32_t qid;
-    
-    uint64_t fill_pkt_len1[50];
+    uint32_t rifo_min;
+    uint32_t rifo_max;
+    uint32_t len;
+    uint32_t counter;
+    uint32_t enq_depth;
+    uint32_t deq_depth;
+    uint32_t round;
+    // uint32_t finish_time;
+
+    uint8_t fill_pkt_len[1422];
 } __attribute__((__packed__)) MessageHeader;
 
 
@@ -523,6 +547,27 @@ static void print_per_core_throughput(void) {
         total_tx, total_rx, total_dropped);
     fflush(stdout);
 }
+
+static void print_dbg_data_file(void) {
+    if (output_dbg_file == NULL) {
+        fprintf(stderr, "Output file is not open\n");
+        return;
+    }
+
+    uint32_t i = 0;
+    for (i = 0; i < Dbg_data_table_idx; i++) {
+        Dbg_data *ddp = Dbg_data_table + i;
+        fprintf(output_dbg_file, "%"PRIu16",%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32","
+                                 "%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32"\n",
+                ddp->dst_port, ddp->seq, ddp->rank, 
+                ddp->rifo_min, ddp->rifo_max, ddp->len, 
+                ddp->counter, ddp->enq_depth, ddp->deq_depth, 
+                ddp->round);
+    }
+    fflush(output_dbg_file);
+    Dbg_data_table_idx = 0;
+}
+
 static void print_per_core_throughput_file(void) {
     if (output_file == NULL) {
         fprintf(stderr, "Output file is not open\n");
@@ -536,17 +581,9 @@ static void print_per_core_throughput_file(void) {
     uint64_t total_dropped = 0;
     //for (i = 0; i < n_lcores; i++) {
     for (i = 0; i < num_worker; i++) {
-        fprintf(output_file,"\tcore %"PRIu32"\t"
-            "tx: %"PRIu64"\t"
-            "rx: %"PRIu64"\t"
-            "rx_read: %"PRIu64"\t"
-            "rx_write: %"PRIu64"\t"
-            "dropped: %"PRIu64"\n",
-            i, tput_stat[i].tx - tput_stat[i].last_tx,
+        fprintf(output_file,"%"PRIu64",%"PRIu64"\n",
             tput_stat[i].rx - tput_stat[i].last_rx,
-            tput_stat[i].rx_read - tput_stat[i].last_rx_read,
-            tput_stat[i].rx_write - tput_stat[i].last_rx_write,
-            tput_stat[i].dropped - tput_stat[i].last_dropped);
+            tput_stat[i].rx);
         total_tx += tput_stat[i].tx - tput_stat[i].last_tx;
         total_rx += tput_stat[i].rx - tput_stat[i].last_rx;
         total_dropped += tput_stat[i].dropped - tput_stat[i].last_dropped;
@@ -594,3 +631,4 @@ static uint64_t timediff_in_us(uint64_t new_t, uint64_t old_t) {
 }
 
 #endif //NETCACHE_UTIL_H
+

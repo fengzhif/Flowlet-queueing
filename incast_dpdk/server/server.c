@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <arpa/inet.h>
 #include <getopt.h>
+#include <signal.h>
 
 #include <rte_memory.h>
 #include <rte_memzone.h>
@@ -43,6 +44,16 @@ uint32_t average_interval = 32;
 
 int tot_count[10] = {0};
 
+static void signal_handler(int sig) {
+    printf("Received signal %d, cleaning up...\n", sig);
+    if (output_dbg_file != NULL) {
+        fclose(output_dbg_file);
+        output_dbg_file = NULL;
+    }
+    close_output_file();
+    exit(0);
+}
+
 uint8_t findIndex(uint16_t dst_port) {
     // 将目的端口转换为字符串
     char port_str[6]; // 足够存储 5 位数字和终止符
@@ -77,9 +88,28 @@ static void process_packet_client(uint32_t lcore_id, struct rte_mbuf *mbuf) {
 
     // uint8_t stat_idx = ntohs(message_header->rank);
     uint16_t dst_port = ntohs(udp->dst_port);
+    
+    if (Dbg_data_table_idx > 5000000) {
+        perror("over flow!!!!");
+        return;
+    }
+    Dbg_data *dd = Dbg_data_table + Dbg_data_table_idx;
+    dd->dst_port = dst_port;
+    dd->seq = ntohl(message_header->seq);
+    dd->rank = ntohl(message_header->rank);
+    dd->rifo_min = ntohl(message_header->rifo_min);
+    dd->rifo_max = ntohl(message_header->rifo_max);
+    dd->len = ntohl(message_header->len);
+    dd->counter = ntohl(message_header->counter);
+    dd->enq_depth = ntohl(message_header->enq_depth);
+    dd->deq_depth = ntohl(message_header->deq_depth);
+    dd->round = ntohl(message_header->round);
+
+    Dbg_data_table_idx++;
+    
     uint8_t stat_idx = findIndex(dst_port);
 
-    tput_stat[stat_idx].rx += 4 * (sizeof(MessageHeader) + sizeof(struct udp_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct ether_hdr));
+    tput_stat[stat_idx].rx += (sizeof(MessageHeader) + sizeof(struct udp_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct ether_hdr));
 }
 
 // RX loop for test
@@ -103,6 +133,11 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
     uint64_t rx_array[150] = {};
     uint32_t rx_idx = 0;
     open_output_file();
+    output_dbg_file = fopen("output_dbg_data.txt", "w");
+    if (output_dbg_file == NULL) {
+        perror("Failed to open file output_dbg_data.txt");
+        exit(EXIT_FAILURE);
+    }
     while (1) {
         // read current time
         cur_tsc = rte_rdtsc();
@@ -112,6 +147,7 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
             if (unlikely(cur_tsc > next_update_tsc)) {
                 // print_per_core_throughput();
                 print_per_core_throughput_file();
+                print_dbg_data_file();
                 //print_latency(latency_stat_b);
                 next_update_tsc += update_tsc;
             }
@@ -219,6 +255,10 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
             }
         }
     }
+    if (output_dbg_file != NULL) {
+        fclose(output_dbg_file);
+        output_dbg_file = NULL;
+    }
     close_output_file();
     return 0;
 }
@@ -287,6 +327,8 @@ int main(int argc, char **argv) {
     int ret;
     uint32_t lcore_id;
 
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
     // parse default arguments
     ret = rte_eal_init(argc, argv);
     if (ret < 0) {
@@ -316,3 +358,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+
