@@ -77,6 +77,21 @@ static void process_packet_client(uint32_t lcore_id, struct rte_mbuf *mbuf) {
 
     // uint8_t stat_idx = ntohs(message_header->rank);
     uint16_t dst_port = ntohs(udp->dst_port);
+    
+    Dbg_data *dd = Dbg_data_table + Dbg_data_table_idx;
+    dd->dst_port = dst_port;
+    dd->seq = ntohl(message_header->seq);
+    dd->rank = ntohl(message_header->rank);
+    dd->rifo_min = ntohl(message_header->rifo_min);
+    dd->rifo_max = ntohl(message_header->rifo_max);
+    dd->len = ntohl(message_header->len);
+    dd->counter = ntohl(message_header->counter);
+    dd->enq_depth = ntohl(message_header->enq_depth);
+    dd->deq_depth = ntohl(message_header->deq_depth);
+    dd->round = ntohl(message_header->round);
+
+    Dbg_data_table_idx++;
+    
     uint8_t stat_idx = findIndex(dst_port);
 
     tput_stat[stat_idx].rx += 4 * (sizeof(MessageHeader) + sizeof(struct udp_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct ether_hdr));
@@ -103,6 +118,11 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
     uint64_t rx_array[150] = {};
     uint32_t rx_idx = 0;
     open_output_file();
+    output_dbg_file = fopen("output_dbg_data.txt", "w");
+    if (output_dbg_data == NULL) {
+        perror("Failed to open file output_dbg_data.txt");
+        exit(EXIT_FAILURE);
+    }
     while (1) {
         // read current time
         cur_tsc = rte_rdtsc();
@@ -218,6 +238,10 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
                 rte_pktmbuf_free(mbuf);
             }
         }
+    }
+    if (output_dbg_file != NULL) {
+        fclose(output_dbg_file);
+        output_dbg_file = NULL;
     }
     close_output_file();
     return 0;

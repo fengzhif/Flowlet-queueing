@@ -55,6 +55,8 @@ uint32_t num_ports = 15;
 uint32_t curr_port = 9000;
 uint32_t time_to_run = 3000;
 
+uint32_t flow_seq[20] = {0};
+
 uint32_t rank = 0;
 /*
  * functions for processing
@@ -84,17 +86,22 @@ static void generate_request_pkt(uint32_t lcore_id, struct rte_mbuf *mbuf, uint6
     // udp->dst_port = htons(dst_port + lcore_id - 1);
     // udp->dst_port = htons(dst_port + 1 - 1);
     udp->dst_port = htons(curr_port);
+
+    uint32_t *seqp = flow_seq + curr_port - dst_port;
+    uint32_t seq = *seqp;
+    (*seqp) += 1;
+
     curr_port += 1;
     if (curr_port == dst_port + num_ports)
     {
-	curr_port = dst_port;
+        curr_port = dst_port;
     }
     
     MessageHeader* message_header = (MessageHeader*) ((uint8_t*)eth + sizeof(header_template));
 
     rank = client_idx;
     // key
-    message_header->queue_length = htons(5);
+    message_header->seq = htons(seq);
 }
 
 int64_t max(uint64_t p, uint64_t q) {

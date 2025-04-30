@@ -85,15 +85,18 @@ static const struct rte_eth_conf port_conf = {
  */
 
 typedef struct MessageHeader_ {
-    // uint32_t rank;
-    // uint32_t qid;
-    uint32_t queue_length;
-    uint32_t qid;
+    uint32_t seq;
+    uint32_t rank;
+    uint32_t rifo_min;
+    uint32_t rifo_max;
+    uint32_t len;
+    uint32_t counter;
+    uint32_t enq_depth;
+    uint32_t deq_depth;
     uint32_t round;
-    uint32_t round_index;
-    
-    uint64_t fill_pkt_len1[180];
-    uint16_t pad;
+    // uint32_t finish_time;
+
+    uint8_t fill_pkt_len[1422];
 } __attribute__((__packed__)) MessageHeader;
 
 struct mbuf_table {
