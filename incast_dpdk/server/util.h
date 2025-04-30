@@ -82,7 +82,7 @@ typedef struct Dbg_data {
     uint32_t enq_depth;
     uint32_t deq_depth;
     uint32_t round;
-};
+} Dbg_data;
 Dbg_data Dbg_data_table[1000000];
 uint32_t Dbg_data_table_idx = 0;
 
