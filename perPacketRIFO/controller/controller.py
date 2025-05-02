@@ -178,8 +178,12 @@ match_table_queueLength = bfrt_info.table_get("Ingress.queue_length_lookup")
 try:
     keyname = "meta.available_queue"
     for i in range(0,17):
-        available_queue_start = 1<<i
-        available_queue_end = (1<<(i+1))-1
+        if i==0:
+            available_queue_start=0
+            available_queue_end=1
+        else:
+            available_queue_start = 1<<i
+            available_queue_end = (1<<(i+1))-1
         # available_queue = 2**(i-1)
         # available_queue_mask = bytearray(((1 << i) - 1).to_bytes(2, byteorder='big'))
         exponent_value = int(i)
@@ -195,9 +199,13 @@ finally:
 match_table_MaxMin = bfrt_info.table_get("Ingress.max_min_lookup")
 try:
     keyname = "meta.max_min"
-    for i in range(1,16):
-        max_min_start = 1<<i
-        max_min_end = (1<<(i+1))-1
+    for i in range(0,16):
+        if i==0:
+            max_min_start=0
+            max_min_end=1
+        else:
+            max_min_start = 1<<i
+            max_min_end = (1<<(i+1))-1
         # max_min_mask = bytearray(((1 << i) - 1).to_bytes(2, byteorder='big'))
         exponent_value = int(i)
         match_table_MaxMin.entry_add(
@@ -213,8 +221,8 @@ match_table_MaxMinBuffer = bfrt_info.table_get("Ingress.max_min_buffer_lookup")
 try:
     key_max_min = "meta.max_min_exponent"
     key_buffer = "meta.buffer_exponent"
-    for i in range(1,17):
-        for j in range(1,22):
+    for i in range(0,17):
+        for j in range(0,22):
             mul=i+j
             match_table_MaxMinBuffer.entry_add(
                 target,
@@ -228,9 +236,13 @@ finally:
 match_table_dividend = bfrt_info.table_get("Ingress.dividend_lookup")
 try:
     keyname = "meta.dividend"
-    for i in range(1,16):
-        dividend_start = 1<<i
-        dividend_end = (1<<(i+1))-1
+    for i in range(0,16):
+        if i==0:
+            dividend_start=0
+            dividend_end=1
+        else:
+            dividend_start = 1<<i
+            dividend_end = (1<<(i+1))-1
         # dividend_mask = bytearray(((1 << i) - 1).to_bytes(2, byteorder='big'))
         exponent_value = int(i)
         match_table_dividend.entry_add(
