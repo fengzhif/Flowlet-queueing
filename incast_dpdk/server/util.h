@@ -575,8 +575,8 @@ static void print_per_core_throughput_file(void) {
     //for (i = 0; i < n_lcores; i++) {
     for (i = 0; i < num_worker; i++) {
         fprintf(output_file,"%"PRIu64",%"PRIu64"\n",
-            tput_stat[i].rx - tput_stat[i].last_rx,
-            tput_stat[i].rx);
+            tput_stat[i].rx,
+            tput_stat[i].last_rx);
         total_tx += tput_stat[i].tx - tput_stat[i].last_tx;
         total_rx += tput_stat[i].rx - tput_stat[i].last_rx;
         total_dropped += tput_stat[i].dropped - tput_stat[i].last_dropped;
