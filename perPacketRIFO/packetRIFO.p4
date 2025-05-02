@@ -472,6 +472,7 @@ control Ingress(
     RegisterAction<bit<32>, bit<5>, bit<32>>(min_rank_reg) min_rank_reg_reset_action = {
        void apply(inout bit<32> value, out bit<32> read_value){
            value = meta.pkt_rank;
+           read_value = value;
        }
    };
 
@@ -487,6 +488,7 @@ control Ingress(
     RegisterAction<bit<32>, bit<5>, bit<32>>(max_rank_reg) max_rank_reg_reset_action = {
        void apply(inout bit<32> value, out bit<32> read_value){
            value = meta.pkt_rank;
+           read_value = value;
        }
    };
     
@@ -691,8 +693,8 @@ control Ingress(
                 bit<16> count_reset = set_counter_reg.execute(0);
                 meta.counter=(bit<32>)count_reset;
                 if(count_reset == CounterLimit){
-                    max_rank_reg_reset_action.execute(0);
-                    min_rank_reg_reset_action.execute(0);
+                    meta.max_pkt_rank = max_rank_reg_reset_action.execute(0);
+                    meta.min_pkt_rank = min_rank_reg_reset_action.execute(0);
                 }
                 else{
                     //Get Max and Min ranks
