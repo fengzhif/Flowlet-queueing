@@ -93,8 +93,7 @@ typedef struct MessageHeader_ {
     uint32_t round_index;
     uint32_t counter;
     
-    uint64_t fill_pkt_len1[180];
-    uint16_t pad;
+    uint8_t fill_pkt_len1[1438];
 } __attribute__((__packed__)) MessageHeader;
 
 struct mbuf_table {
