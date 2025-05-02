@@ -91,6 +91,7 @@ typedef struct MessageHeader_ {
     uint32_t qid;
     uint32_t round;
     uint32_t round_index;
+    uint32_t counter;
     
     uint64_t fill_pkt_len1[180];
     uint16_t pad;
