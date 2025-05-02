@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <arpa/inet.h>
 #include <getopt.h>
+#include <signal.h>
 
 #include <rte_memory.h>
 #include <rte_memzone.h>
@@ -42,6 +43,16 @@ uint32_t average_interval = 32;
  */
 
 int tot_count[10] = {0};
+
+static void signal_handler(int sig) {
+    printf("Received signal %d, cleaning up...\n", sig);
+    if (output_dbg_file != NULL) {
+        fclose(output_dbg_file);
+        output_dbg_file = NULL;
+    }
+    close_output_file();
+    exit(0);
+}
 
 uint8_t findIndex(uint16_t dst_port) {
     // 将目的端口转换为字符串
@@ -78,6 +89,10 @@ static void process_packet_client(uint32_t lcore_id, struct rte_mbuf *mbuf) {
     // uint8_t stat_idx = ntohs(message_header->rank);
     uint16_t dst_port = ntohs(udp->dst_port);
     
+    if (Dbg_data_table_idx > 5000000) {
+        perror("over flow!!!!");
+        return;
+    }
     Dbg_data *dd = Dbg_data_table + Dbg_data_table_idx;
     dd->dst_port = dst_port;
     dd->seq = ntohl(message_header->seq);
@@ -94,7 +109,7 @@ static void process_packet_client(uint32_t lcore_id, struct rte_mbuf *mbuf) {
     
     uint8_t stat_idx = findIndex(dst_port);
 
-    tput_stat[stat_idx].rx += 4 * (sizeof(MessageHeader) + sizeof(struct udp_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct ether_hdr));
+    tput_stat[stat_idx].rx += (sizeof(MessageHeader) + sizeof(struct udp_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct ether_hdr));
 }
 
 // RX loop for test
@@ -132,6 +147,7 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
             if (unlikely(cur_tsc > next_update_tsc)) {
                 // print_per_core_throughput();
                 print_per_core_throughput_file();
+                print_dbg_data_file();
                 //print_latency(latency_stat_b);
                 next_update_tsc += update_tsc;
             }
@@ -311,6 +327,8 @@ int main(int argc, char **argv) {
     int ret;
     uint32_t lcore_id;
 
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
     // parse default arguments
     ret = rte_eal_init(argc, argv);
     if (ret < 0) {
@@ -340,3 +358,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+

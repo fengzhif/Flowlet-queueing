@@ -101,7 +101,7 @@ static void generate_request_pkt(uint32_t lcore_id, struct rte_mbuf *mbuf, uint6
 
     rank = client_idx;
     // key
-    message_header->seq = htons(seq);
+    message_header->seq = htonl(seq);
 }
 
 int64_t max(uint64_t p, uint64_t q) {

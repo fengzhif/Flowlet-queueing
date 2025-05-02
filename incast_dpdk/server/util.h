@@ -83,7 +83,7 @@ typedef struct Dbg_data {
     uint32_t deq_depth;
     uint32_t round;
 } Dbg_data;
-Dbg_data Dbg_data_table[1000000];
+Dbg_data Dbg_data_table[5000000];
 uint32_t Dbg_data_table_idx = 0;
 
 // 打开文件
@@ -556,7 +556,7 @@ static void print_dbg_data_file(void) {
 
     uint32_t i = 0;
     for (i = 0; i < Dbg_data_table_idx; i++) {
-        Dbg_data *ddp = Dbg_data_table + Dbg_data_table_idx;
+        Dbg_data *ddp = Dbg_data_table + i;
         fprintf(output_dbg_file, "%"PRIu16",%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32","
                                  "%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32"\n",
                 ddp->dst_port, ddp->seq, ddp->rank, 
@@ -631,3 +631,4 @@ static uint64_t timediff_in_us(uint64_t new_t, uint64_t old_t) {
 }
 
 #endif //NETCACHE_UTIL_H
+
