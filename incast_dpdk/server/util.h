@@ -554,15 +554,8 @@ static void print_dbg_data_file(void) {
         return;
     }
 
-    uint32_t i = 0;
-    for (i = 0; i < Dbg_data_table_idx; i++) {
-        Dbg_data *ddp = Dbg_data_table + i;
-        fprintf(output_dbg_file, "%"PRIu16",%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32","
-                                 "%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32"\n",
-                ddp->dst_port, ddp->seq, ddp->rank, 
-                ddp->rifo_min, ddp->rifo_max, ddp->len, 
-                ddp->counter, ddp->enq_depth, ddp->deq_depth, 
-                ddp->round);
+    if (Dbg_data_table_idx > 0) {
+        fwrite(Dbg_data_table, sizeof(Dbg_data), Dbg_data_table_idx, output_dbg_file);
     }
     fflush(output_dbg_file);
     Dbg_data_table_idx = 0;
