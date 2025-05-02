@@ -133,9 +133,9 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
     uint64_t rx_array[150] = {};
     uint32_t rx_idx = 0;
     open_output_file();
-    output_dbg_file = fopen("output_dbg_data.txt", "w");
+    output_dbg_file = fopen("output_dbg_data.bin", "w");
     if (output_dbg_file == NULL) {
-        perror("Failed to open file output_dbg_data.txt");
+        perror("Failed to open file output_dbg_data.bin");
         exit(EXIT_FAILURE);
     }
     while (1) {
