@@ -6,7 +6,7 @@
 **************************************************************************/
 const bit<20> BufferSize=25000;
 const PortId_t OutputPort = 156;
-const bit<16>  CounterLimit = 50;
+const bit<16>  CounterLimit = 500;
 const bit<32> round_add=1;
 
 #define WORKER_PORT 9001
@@ -93,6 +93,18 @@ header worker_h {
     bit<32>     round_index;
 }
 
+header debugger_h {
+    bit<32>     seq;
+    bit<32>     pkt_rank;
+    bit<32>     min_rank;
+    bit<32>     max_rank;
+    bit<32>     qlength;
+    bit<32>     counter;
+    bit<32>     enq_length;
+    bit<32>     deq_length;
+    bit<32>     round;
+}
+
 
 
 /*************************************************************************
@@ -108,6 +120,7 @@ struct headers_t {
    tcp_h               tcp;
    udp_h               udp;
    worker_h            worker;
+   debugger_h          debugger;
 }
 
    /******  G L O B A L   I N G R E S S   M E T A D A T A  *********/
@@ -117,6 +130,7 @@ struct my_ingress_metadata_t {
    bit<32>      flow_index;
 //    bit<32>      weight;
    bit<32>      round;
+   bit<32>      counter;
 
    bit<20>      queue_length;
    bit<20>      available_queue; //B-l
@@ -196,13 +210,18 @@ parser EtherIPTCPUDPParser(packet_in        pkt,
        pkt.extract(hdr.udp);
        transition select(hdr.udp.dst_port) {
            WORKER_PORT: parse_worker;
-           default: accept;
+           default: parse_debugger;
        }
    }
 
    state parse_worker {
        pkt.extract(hdr.worker);
        transition accept;
+   }
+
+   state parse_debugger {
+        pkt.extract(hdr.debugger);
+        transition accept;
    }
 }
 
@@ -413,13 +432,14 @@ control Ingress(
     RegisterAction<bit<16>,_,bit<16>>(countReg) set_counter_reg = {
         void apply(inout bit<16> value,out bit<16> result){
             if(value == CounterLimit){
-                result = 1;
+                // result = 1;
                 value = 1;
             }
             else{
-                result = 0;
+                // result = 0;
                 value = value + 1;
             }
+            result=value;
         }
     };
 
@@ -532,7 +552,7 @@ control Ingress(
    }
 
    action action_calculate_left_side(){
-    meta.left_side =(bit<24>) meta.dividend_exponent + 13; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
+    meta.left_side =(bit<24>) meta.dividend_exponent + 14; //(rp-Min)*((1-k)*B)   (1-k)*B---2^14
    }
 
    table calculate_left_side{
@@ -661,7 +681,7 @@ control Ingress(
                 }
                 // get_weightindex_TCP_table.apply();
                 // get round
-                // meta.round = get_ig_round_reg.execute(0);
+                meta.round = get_ig_round_reg.execute(0);
                 // Get weight  meta.weight没被使用时，无法通过下流表项为其赋值
                 // get_weight_table.apply();
                 //get rank
@@ -669,7 +689,8 @@ control Ingress(
                 update_and_get_f_finish_time.apply();
                 //get counter
                 bit<16> count_reset = set_counter_reg.execute(0);
-                if(count_reset == 1){
+                meta.counter=(bit<32>)count_reset;
+                if(count_reset == CounterLimit){
                     max_rank_reg_reset_action.execute(0);
                     min_rank_reg_reset_action.execute(0);
                 }
@@ -712,6 +733,12 @@ control Ingress(
                         ig_dprsr_md.drop_ctl = 0x1;
                     }
                 }
+                hdr.debugger.pkt_rank=meta.pkt_rank;
+                hdr.debugger.min_rank=meta.min_pkt_rank;
+                hdr.debugger.max_rank=meta.max_pkt_rank;
+                hdr.debugger.qlength=(bit<32>)meta.queue_length;
+                hdr.debugger.counter=meta.counter;
+                hdr.debugger.round=meta.round;
             }
        }
     }
@@ -825,6 +852,8 @@ control Egress(
         else if (!hdr.worker.isValid() && eg_intr_md.egress_port == OutputPort){
             eg_queue_length_reg_write.execute(0);
             set_eg_round_reg.execute(0);
+            hdr.debugger.enq_length=(bit<32>)eg_intr_md.enq_qdepth;
+            hdr.debugger.deq_length=(bit<32>)eg_intr_md.deq_qdepth;
         }
    }
 }
