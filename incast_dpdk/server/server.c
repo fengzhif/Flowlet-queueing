@@ -152,84 +152,84 @@ static int32_t nc_backend_loop(__attribute__((unused)) void *arg) {
                 next_update_tsc += update_tsc;
             }
 
-            if (unlikely(average_start_tsc > 0 && cur_tsc > average_start_tsc)) {
-                uint64_t total_tx = 0;
-                uint64_t total_rx = 0;
-                uint64_t total_rx_read = 0;
-                uint64_t total_rx_write = 0;
-                uint64_t total_dropped = 0;
+            // if (unlikely(average_start_tsc > 0 && cur_tsc > average_start_tsc)) {
+            //     uint64_t total_tx = 0;
+            //     uint64_t total_rx = 0;
+            //     uint64_t total_rx_read = 0;
+            //     uint64_t total_rx_write = 0;
+            //     uint64_t total_dropped = 0;
 
-                for (i = 0; i < num_worker; i++) {
-                    tput_stat_avg[i].last_tx = tput_stat[i].tx;
-                    tput_stat_avg[i].last_rx = tput_stat[i].rx;
-                    tput_stat_avg[i].last_rx_read = tput_stat[i].rx_read;
-                    tput_stat_avg[i].last_rx_write = tput_stat[i].rx_write;
-                    tput_stat_avg[i].last_dropped = tput_stat[i].dropped;
+            //     for (i = 0; i < num_worker; i++) {
+            //         tput_stat_avg[i].last_tx = tput_stat[i].tx;
+            //         tput_stat_avg[i].last_rx = tput_stat[i].rx;
+            //         tput_stat_avg[i].last_rx_read = tput_stat[i].rx_read;
+            //         tput_stat_avg[i].last_rx_write = tput_stat[i].rx_write;
+            //         tput_stat_avg[i].last_dropped = tput_stat[i].dropped;
 
-                    total_tx += tput_stat[i].tx;
-                    total_rx += tput_stat[i].rx;
-                    total_rx_read += tput_stat[i].rx_read;
-                    total_rx_write += tput_stat[i].rx_write;
-                    total_dropped += tput_stat[i].dropped;
-                }
-                // tput_stat_avg[0].last_tx = total_tx;
-                // tput_stat_avg[0].last_rx = total_rx;
-                // tput_stat_avg[0].last_rx_read = total_rx_read;
-                // tput_stat_avg[0].last_rx_write = total_rx_write;
-                // tput_stat_avg[0].last_dropped = total_dropped;
+            //         total_tx += tput_stat[i].tx;
+            //         total_rx += tput_stat[i].rx;
+            //         total_rx_read += tput_stat[i].rx_read;
+            //         total_rx_write += tput_stat[i].rx_write;
+            //         total_dropped += tput_stat[i].dropped;
+            //     }
+            //     // tput_stat_avg[0].last_tx = total_tx;
+            //     // tput_stat_avg[0].last_rx = total_rx;
+            //     // tput_stat_avg[0].last_rx_read = total_rx_read;
+            //     // tput_stat_avg[0].last_rx_write = total_rx_write;
+            //     // tput_stat_avg[0].last_dropped = total_dropped;
 
-                average_start_tsc = 0;
+            //     average_start_tsc = 0;
 
-            }
-            if (unlikely(average_end_tsc > 0 && cur_tsc > average_end_tsc)) {
-                uint64_t total_tx = 0;
-                uint64_t total_rx = 0;
-                uint64_t total_rx_read = 0;
-                uint64_t total_rx_write = 0;
-                uint64_t total_dropped = 0;
-                uint64_t total_latency = 0;
-                uint64_t total_latency_num = 0;
-                printf("Final! Average!\n");
-                for (i = 0; i < num_worker; i++) {
-                    tput_stat_avg[i].tx = tput_stat[i].tx;
-                    tput_stat_avg[i].rx = tput_stat[i].rx;
-                    tput_stat_avg[i].rx_read = tput_stat[i].rx_read;
-                    tput_stat_avg[i].rx_write = tput_stat[i].rx_write;
-                    tput_stat_avg[i].dropped = tput_stat[i].dropped;
-                    // printf("Core %d\n", i);
-                    // printf("tx: %"PRIu64"\n", (tput_stat_avg[i].tx - tput_stat_avg[i].last_tx) / average_interval);
-                    printf("Core %d;rx: %"PRIu64"\n", i, (tput_stat_avg[i].rx - tput_stat_avg[i].last_rx) / average_interval / avg_count);
-                    // printf("rx_read: %"PRIu64"\n", (tput_stat_avg[i].rx_read - tput_stat_avg[i].last_rx_read) / average_interval);
-                    // printf("rx_write: %"PRIu64"\n", (tput_stat_avg[i].rx_write - tput_stat_avg[i].last_rx_write) / average_interval);
+            // }
+            // if (unlikely(average_end_tsc > 0 && cur_tsc > average_end_tsc)) {
+            //     uint64_t total_tx = 0;
+            //     uint64_t total_rx = 0;
+            //     uint64_t total_rx_read = 0;
+            //     uint64_t total_rx_write = 0;
+            //     uint64_t total_dropped = 0;
+            //     uint64_t total_latency = 0;
+            //     uint64_t total_latency_num = 0;
+            //     printf("Final! Average!\n");
+            //     for (i = 0; i < num_worker; i++) {
+            //         tput_stat_avg[i].tx = tput_stat[i].tx;
+            //         tput_stat_avg[i].rx = tput_stat[i].rx;
+            //         tput_stat_avg[i].rx_read = tput_stat[i].rx_read;
+            //         tput_stat_avg[i].rx_write = tput_stat[i].rx_write;
+            //         tput_stat_avg[i].dropped = tput_stat[i].dropped;
+            //         // printf("Core %d\n", i);
+            //         // printf("tx: %"PRIu64"\n", (tput_stat_avg[i].tx - tput_stat_avg[i].last_tx) / average_interval);
+            //         printf("Core %d;rx: %"PRIu64"\n", i, (tput_stat_avg[i].rx - tput_stat_avg[i].last_rx) / average_interval / avg_count);
+            //         // printf("rx_read: %"PRIu64"\n", (tput_stat_avg[i].rx_read - tput_stat_avg[i].last_rx_read) / average_interval);
+            //         // printf("rx_write: %"PRIu64"\n", (tput_stat_avg[i].rx_write - tput_stat_avg[i].last_rx_write) / average_interval);
 
-                    total_tx += tput_stat[i].tx;
-                    total_rx += tput_stat[i].rx;
-                    total_rx_read += tput_stat[i].rx_read;
-                    total_rx_write += tput_stat[i].rx_write;
-                    total_dropped += tput_stat[i].dropped;
-                }
-                // tput_stat_avg[0].tx = total_tx;
-                // tput_stat_avg[0].rx = total_rx;
-                // tput_stat_avg[0].rx_read = total_rx_read;
-                // tput_stat_avg[0].rx_write = total_rx_write;
-                // tput_stat_avg[0].dropped = total_dropped;
+            //         total_tx += tput_stat[i].tx;
+            //         total_rx += tput_stat[i].rx;
+            //         total_rx_read += tput_stat[i].rx_read;
+            //         total_rx_write += tput_stat[i].rx_write;
+            //         total_dropped += tput_stat[i].dropped;
+            //     }
+            //     // tput_stat_avg[0].tx = total_tx;
+            //     // tput_stat_avg[0].rx = total_rx;
+            //     // tput_stat_avg[0].rx_read = total_rx_read;
+            //     // tput_stat_avg[0].rx_write = total_rx_write;
+            //     // tput_stat_avg[0].dropped = total_dropped;
 
-                uint64_t rx_total = (tput_stat_avg[0].rx - tput_stat_avg[0].last_rx) / average_interval / avg_count;
-                // printf("Total\n");
-                // printf("tx: %"PRIu64"\n", (tput_stat_avg[0].tx - tput_stat_avg[0].last_tx) / average_interval);
-                printf("Total: rx: %"PRIu64"\n", rx_total);
-                // printf("rx_read: %"PRIu64"\n", (tput_stat_avg[0].rx_read - tput_stat_avg[0].last_rx_read) / average_interval);
-                // printf("rx_write: %"PRIu64"\n", (tput_stat_avg[0].rx_write - tput_stat_avg[0].last_rx_write) / average_interval);
-                //printf("dropped: %"PRIu64"\n", (tput_stat_avg.dropped - tput_stat_avg.last_dropped) / average_interval);
-                fflush(stdout);
+            //     uint64_t rx_total = (tput_stat_avg[0].rx - tput_stat_avg[0].last_rx) / average_interval / avg_count;
+            //     // printf("Total\n");
+            //     // printf("tx: %"PRIu64"\n", (tput_stat_avg[0].tx - tput_stat_avg[0].last_tx) / average_interval);
+            //     printf("Total: rx: %"PRIu64"\n", rx_total);
+            //     // printf("rx_read: %"PRIu64"\n", (tput_stat_avg[0].rx_read - tput_stat_avg[0].last_rx_read) / average_interval);
+            //     // printf("rx_write: %"PRIu64"\n", (tput_stat_avg[0].rx_write - tput_stat_avg[0].last_rx_write) / average_interval);
+            //     //printf("dropped: %"PRIu64"\n", (tput_stat_avg.dropped - tput_stat_avg.last_dropped) / average_interval);
+            //     fflush(stdout);
 
-                rx_array[rx_idx] = rx_total;
-                rx_idx ++;
+            //     rx_array[rx_idx] = rx_total;
+            //     rx_idx ++;
 
-                fflush(stdout);
+            //     fflush(stdout);
 
-                rte_exit(EXIT_SUCCESS, "Test Completed\n");
-            }
+            //     rte_exit(EXIT_SUCCESS, "Test Completed\n");
+            // }
         }
 
         // adjust send limit at master lcore
